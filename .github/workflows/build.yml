@@ -11,11 +11,19 @@ on:
 env:
   THEOS: ${{ github.workspace }}/theos
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential fakeroot rsync curl perl git libxml2 zstd
 
       - name: Cache Theos + SDK + Toolchain
         uses: actions/cache@v4
@@ -50,7 +58,17 @@ jobs:
           export THEOS_PACKAGE_SCHEME=rootless
           cd DemoTweak
           make clean
-          make package FINALPACKAGE=1
+          set -o pipefail
+          make package FINALPACKAGE=1 2>&1 | tee ../ci-build.log
+
+      - name: Commit build log on failure
+        if: failure()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add ci-build.log
+          git commit -m "ci: attach build log [skip ci]" || exit 0
+          git push origin HEAD:main
 
       - name: Verify architectures in output
         run: |
