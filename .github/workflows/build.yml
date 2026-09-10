@@ -57,10 +57,8 @@ jobs:
           export PATH="$THEOS/bin:$PATH"
           export THEOS_PACKAGE_SCHEME=rootless
           cd DemoTweak
-          {
-            make clean
-            make package FINALPACKAGE=1
-          } 2>&1 | tee ../ci-build.log
+          set -o pipefail
+          make messages=yes package FINALPACKAGE=1 2>&1 | tee ../ci-build.log
 
       - name: Upload deb (on success)
         if: steps.build.outcome == 'success'
