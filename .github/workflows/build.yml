@@ -24,6 +24,8 @@ jobs:
           key: theos-iphoneos16.5-x86_64
 
       - name: Install Theos if not cached
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ ! -d "$THEOS/toolchain/linux/iphone/bin" ]; then
             git clone --recursive https://github.com/theos/theos.git "$THEOS"
@@ -34,7 +36,7 @@ jobs:
               | tar -xJ -C "$THEOS/toolchain"
             echo "Downloading iPhoneOS SDK..."
             export THEOS
-            "$THEOS/bin/install-sdk" 16.5
+            "$THEOS/bin/install-sdk" latest
           fi
 
       - name: Verify arm64e support
