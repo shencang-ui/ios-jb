@@ -3,6 +3,7 @@ name: Build arm64e Tweak  # v4
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
     paths:
       - 'DemoTweak/**'
       - '.github/workflows/**'
