@@ -43,3 +43,4 @@ git push origin v1.0.0
 ## 修改包信息
 
 编辑 `DemoTweak/control`（包名、版本、描述、依赖）和 `Makefile`（目标进程、架构）。
+# integrity guard note
