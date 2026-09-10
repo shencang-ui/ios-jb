@@ -56,9 +56,10 @@ jobs:
           export PATH="$THEOS/bin:$PATH"
           export THEOS_PACKAGE_SCHEME=rootless
           cd DemoTweak
-          make clean
-          set -o pipefail
-          make package FINALPACKAGE=1 2>&1 | tee ../ci-build.log
+          {
+            make clean
+            make package FINALPACKAGE=1
+          } 2>&1 | tee ../ci-build.log
 
       - name: Upload deb (on success)
         if: steps.build.outcome == 'success'
@@ -87,7 +88,7 @@ jobs:
           path: ci-build.log
 
       - name: Commit build log on failure
-        if: failure()
+        if: steps.build.outcome == 'failure'
         continue-on-error: true
         run: |
           git config user.name "ci-bot"
