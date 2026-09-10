@@ -67,12 +67,34 @@ jobs:
           name: DemoTweak-rootless-arm64e
           path: DemoTweak/packages/*.deb
 
+      - name: Emit build log tail as annotation
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ -f ci-build.log ]; then
+            TAIL=$(tail -c 3000 ci-build.log | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=build-log-tail::$TAIL"
+          else
+            echo "::error title=build-log-tail::no ci-build.log produced (build step died before tee)"
+          fi
+
       - name: Upload build log
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ci-build-log
           path: ci-build.log
+
+      - name: Commit build log on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add ci-build.log
+          git commit -m "ci: attach build log [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:main || echo "push failed (token read-only?)"
 
       - name: Upload to Release (on tag)
         if: startsWith(github.ref, 'refs/tags/') && steps.build.outcome == 'success'
