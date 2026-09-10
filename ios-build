@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export THEOS="${THEOS:-$HOME/theos}"
+export PATH="$THEOS/bin:/usr/local/bin:$PATH"
+export THEOS_PACKAGE_SCHEME="${THEOS_PACKAGE_SCHEME:-rootless}"
+
+usage() {
+  cat <<'EOF'
+用法：ios-build <命令> [项目目录]
+
+命令：
+  deb    构建 rootless 越狱插件/动态库 deb
+  ipa    构建 Objective-C 应用并封装 IPA
+  clean  清理 Theos 构建文件
+  info   显示构建环境信息
+
+示例：
+  ios-build deb  ./DemoTweak
+  ios-build deb  ./DemoDylib
+  ios-build ipa  ./DemoApp
+EOF
+}
+
+cmd="${1:-}"
+project="${2:-.}"
+
+# iSH 本地工具链无法产出真 arm64e（ld64.lld 会降级 subtype），
+# 本地构建强制只出 arm64；真 arm64e 交给 GitHub Actions（Apple ld64）。
+LOCAL_ARCHS="arm64"
+
+case "$cmd" in
+  deb)
+    cd "$project"
+    make package FINALPACKAGE=1 PACKAGE_FORMAT=deb ARCHS="$LOCAL_ARCHS"
+    ;;
+  ipa)
+    cd "$project"
+    make package FINALPACKAGE=1 PACKAGE_FORMAT=ipa ARCHS="$LOCAL_ARCHS"
+    ;;
+  clean)
+    cd "$project"
+    make clean
+    rm -rf packages
+    ;;
+  info)
+    echo "THEOS=$THEOS"
+    echo "SDK=$(find "$THEOS/sdks" -maxdepth 1 -name 'iPhoneOS*.sdk' | sort -V | tail -1)"
+    "$THEOS/toolchain/linux/iphone/bin/clang" --version | head -1
+    ldid --version 2>&1 | head -1
+    ;;
+  *) usage; exit 2 ;;
+esac

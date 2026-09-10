@@ -1,0 +1,69 @@
+name: Build arm64e Tweak
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'DemoTweak/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  THEOS: ${{ github.workspace }}/theos
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Theos + SDK + Toolchain
+        uses: actions/cache@v4
+        with:
+          path: theos
+          key: theos-iphoneos16.5-x86_64
+
+      - name: Install Theos if not cached
+        run: |
+          if [ ! -d "$THEOS/toolchain/linux/iphone/bin" ]; then
+            git clone --recursive https://github.com/theos/theos.git "$THEOS"
+            mkdir -p "$THEOS/toolchain"
+            echo "Downloading iOS toolchain (Apple clang + ld64, supports arm64e)..."
+            curl -fsSL --retry 5 \
+              https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz \
+              | tar -xJ -C "$THEOS/toolchain"
+            echo "Downloading iPhoneOS SDK..."
+            export THEOS
+            "$THEOS/bin/install-sdk" 16.5
+          fi
+
+      - name: Verify arm64e support
+        run: |
+          "$THEOS/toolchain/linux/iphone/bin/clang" --version | head -1
+          file "$THEOS/toolchain/linux/iphone/bin/ld"
+
+      - name: Build (arm64 + arm64e, rootless)
+        run: |
+          export PATH="$THEOS/bin:$PATH"
+          export THEOS_PACKAGE_SCHEME=rootless
+          cd DemoTweak
+          make clean
+          make package FINALPACKAGE=1
+
+      - name: Verify architectures in output
+        run: |
+          cd DemoTweak
+          file .theos/obj/DemoTweak.dylib
+          "$THEOS/toolchain/linux/iphone/bin/lipo" -info .theos/obj/DemoTweak.dylib
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DemoTweak-rootless-arm64e
+          path: DemoTweak/packages/*.deb
+
+      - name: Upload to Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: DemoTweak/packages/*.deb
