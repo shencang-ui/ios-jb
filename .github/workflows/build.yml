@@ -26,13 +26,17 @@ jobs:
           git clone --recursive --depth 1 https://github.com/theos/theos.git "$THEOS"
           echo "theos 就位: $(ls "$THEOS" | head -5 | tr '\n' ' ')"
 
-      - name: 安装 iOS SDK (只取 16.5)
+      - name: 安装 iOS SDK (16.5)
         run: |
           set -euo pipefail
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/theos/sdks.git "$THEOS/sdks"
-          cd "$THEOS/sdks"
-          git sparse-checkout set iPhoneOS16.5.sdk
+          # theos 是 --recursive 克隆的，sdks 子模块（含全部 SDK）已在 $THEOS/sdks；
+          # 之前在这里重复 clone 同一目录导致 exit 128，改为校验 + 兜底全量克隆
+          if [ ! -d "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
+            rm -rf "$THEOS/sdks"
+            git clone --depth 1 https://github.com/theos/sdks.git "$THEOS/sdks"
+          fi
           ls -d "$THEOS/sdks/iPhoneOS16.5.sdk"
+          du -sh "$THEOS/sdks/iPhoneOS16.5.sdk"
 
       - name: 安装 ldid / dpkg
         run: |
