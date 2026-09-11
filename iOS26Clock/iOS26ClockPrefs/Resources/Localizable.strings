@@ -1,0 +1,16 @@
+"prefs.app_name" = "iOS26 Clock";
+"prefs.clock.enabled" = "iOS 26 Clock";
+"prefs.clock.font_section" = "Variable Font";
+"prefs.clock.variable_font" = "Variable Font";
+"prefs.clock.font_size" = "Font Size";
+"prefs.clock.font_weight" = "Weight";
+"prefs.clock.font_width" = "Width";
+"prefs.clock.font_height" = "Height";
+"prefs.clock.font_softness" = "Softness";
+"prefs.clock.date_section" = "Date";
+"prefs.clock.date_enabled" = "Custom Date Format";
+"prefs.clock.date_format" = "Date Format";
+"prefs.clock.date_format_hint" = "Example: EEE MMM d";
+"prefs.clock.respring" = "Respring";
+"prefs.button.cancel" = "Cancel";
+"prefs.button.save" = "Save";

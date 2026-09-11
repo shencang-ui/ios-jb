@@ -1,0 +1,16 @@
+"prefs.app_name" = "iOS26 时钟";
+"prefs.clock.enabled" = "iOS 26 时钟";
+"prefs.clock.font_section" = "可变字体";
+"prefs.clock.variable_font" = "启用可变字体";
+"prefs.clock.font_size" = "字体大小";
+"prefs.clock.font_weight" = "字重";
+"prefs.clock.font_width" = "字宽";
+"prefs.clock.font_height" = "字高";
+"prefs.clock.font_softness" = "柔和度";
+"prefs.clock.date_section" = "日期";
+"prefs.clock.date_enabled" = "自定义日期格式";
+"prefs.clock.date_format" = "日期格式";
+"prefs.clock.date_format_hint" = "示例：EEE MMM d";
+"prefs.clock.respring" = "注销（Respring）";
+"prefs.button.cancel" = "取消";
+"prefs.button.save" = "保存";
