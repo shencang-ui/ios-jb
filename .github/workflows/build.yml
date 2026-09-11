@@ -1,4 +1,4 @@
-name: Build arm64e Tweak  # v4
+name: Build Tweaks  # v5: DemoTweak (rootless) + iOS26Clock (roothide-compatible)
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     tags: [ 'v*' ]
     paths:
       - 'DemoTweak/**'
+      - 'iOS26Clock/**'
       - '.github/workflows/**'
   workflow_dispatch:
 
@@ -21,13 +22,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential fakeroot rsync curl perl git libxml2 zstd
+          sudo apt-get install -y build-essential fakeroot rsync curl perl git libxml2 zstd xz-utils
 
       - name: Cache Theos + SDK + Toolchain
         uses: actions/cache@v4
         with:
           path: theos
-          key: theos-iphoneos16.5-x86_64
+          key: theos-iphoneos16.5-x86_64-v2
 
       - name: Install Theos if not cached
         env:
@@ -50,58 +51,97 @@ jobs:
           "$THEOS/toolchain/linux/iphone/bin/clang" --version | head -1
           file "$THEOS/toolchain/linux/iphone/bin/ld"
 
-      - name: Build (arm64 + arm64e, rootless)
-        id: build
+      - name: Build DemoTweak (rootless, stock substrate link)
+        id: build-demo
         continue-on-error: true
         run: |
           export PATH="$THEOS/bin:$PATH"
           export THEOS_PACKAGE_SCHEME=rootless
           cd DemoTweak
           set -o pipefail
-          make messages=yes package FINALPACKAGE=1 2>&1 | tee ../ci-build.log
+          make messages=yes package FINALPACKAGE=1 ARCHS="arm64 arm64e" 2>&1 | tee ../ci-demo.log
 
-      - name: Upload deb (on success)
-        if: steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: DemoTweak-rootless-arm64e
-          path: DemoTweak/packages/*.deb
+      # roothide 兼容关键步骤：substrate 的 tbd install-name 改为
+      # @loader_path/.jbroot/usr/lib/libsubstrate.dylib，否则 tweak 在
+      # roothide 设备上无法加载（交接文档记录的根因）。
+      - name: Patch substrate tbd for roothide
+        run: |
+          grep -rl "install-name:.*@rpath/CydiaSubstrate.framework/CydiaSubstrate" \
+            "$THEOS/vendor/lib" | while read -r f; do
+            sed -i "s|@rpath/CydiaSubstrate.framework/CydiaSubstrate|@loader_path/.jbroot/usr/lib/libsubstrate.dylib|" "$f"
+            echo "patched: $f"
+          done
+          grep -h install-name "$THEOS/vendor/lib/iphone/rootless/libsubstrate.tbd" \
+            "$THEOS/vendor/lib/iphone/rootless/CydiaSubstrate.framework/CydiaSubstrate.tbd"
 
-      - name: Emit build log tail as annotation
+      - name: Build iOS26Clock (arm64 + arm64e, roothide-compatible)
+        id: build-clock
+        continue-on-error: true
+        run: |
+          export PATH="$THEOS/bin:$PATH"
+          export THEOS_PACKAGE_SCHEME=rootless
+          cd iOS26Clock
+          set -o pipefail
+          make messages=yes package FINALPACKAGE=1 ARCHS="arm64 arm64e" 2>&1 | tee ../ci-clock.log
+
+      - name: Verify iOS26Clock deb (13+ self checks)
         if: always()
         continue-on-error: true
         run: |
-          if [ -f ci-build.log ]; then
-            TAIL=$(tail -c 3000 ci-build.log | sed ':a;N;$!ba;s/\n/%0A/g')
-            echo "::error title=build-log-tail::$TAIL"
+          DEB=$(ls -t iOS26Clock/packages/*.deb 2>/dev/null | head -1)
+          if [ -n "$DEB" ]; then
+            bash iOS26Clock/verify_deb.sh "$DEB" | tee verify-clock.log
           else
-            echo "::error title=build-log-tail::no ci-build.log produced (build step died before tee)"
+            echo "::error title=verify::no iOS26Clock deb produced" | tee verify-clock.log
           fi
 
-      - name: Upload build log
+      - name: Emit build log tail as annotation (iOS26Clock)
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ -f ci-clock.log ]; then
+            TAIL=$(tail -c 3000 ci-clock.log | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::${{ steps.build-clock.outcome == 'failure' && 'error' || 'notice' }} title=ios26clock-log-tail::$TAIL"
+          else
+            echo "::error title=ios26clock-log-tail::no ci-clock.log produced"
+          fi
+          if [ -f verify-clock.log ]; then
+            echo "verify summary:"
+            cat verify-clock.log
+          fi
+
+      - name: Upload debs (artifacts)
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: ci-build-log
-          path: ci-build.log
+          name: debs
+          path: |
+            DemoTweak/packages/*.deb
+            iOS26Clock/packages/*.deb
+          if-no-files-found: warn
 
-      - name: Commit build log on failure
-        if: steps.build.outcome == 'failure'
+      - name: Upload build logs
+        if: always()
         continue-on-error: true
-        run: |
-          git config user.name "ci-bot"
-          git config user.email "ci-bot@users.noreply.github.com"
-          git add ci-build.log
-          git commit -m "ci: attach build log [skip ci]" || echo "nothing to commit"
-          git push origin HEAD:main || echo "push failed (token read-only?)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ci-demo.log
+            ci-clock.log
+            verify-clock.log
+          if-no-files-found: ignore
 
       - name: Upload to Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/') && steps.build.outcome == 'success'
+        if: startsWith(github.ref, 'refs/tags/') && steps.build-clock.outcome == 'success'
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          files: DemoTweak/packages/*.deb
+          files: |
+            iOS26Clock/packages/*.deb
+            DemoTweak/packages/*.deb
 
-      - name: Mark run as failed if build failed
-        if: steps.build.outcome == 'failure'
+      - name: Mark run as failed if any build failed
+        if: steps.build-demo.outcome == 'failure' || steps.build-clock.outcome == 'failure'
         run: exit 1
