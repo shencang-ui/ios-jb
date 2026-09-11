@@ -22,15 +22,31 @@ has_sig() {
 python3 - "$1" <<'EOF'
 import sys, struct
 d = open(sys.argv[1],'rb').read()
-n = struct.unpack_from('<I', d, 16)[0]
-p = 32
-for _ in range(n):
-    cmd, size = struct.unpack_from('<II', d, p)
-    if cmd == 0x1d:
-        print("YES"); break
-    p += size
-else:
-    print("NO")
+slices = []
+magic = struct.unpack_from('<I', d, 0)[0]
+if magic == 0xfeedfacf:
+    slices = [0]
+elif magic in (0xcafebabe, 0xbebafeca):
+    nfat = struct.unpack_from('>I', d, 4)[0]
+    for i in range(nfat):
+        off = struct.unpack_from('>I', d, 8 + i*20 + 8)[0]
+        slices.append(off)
+ok = True
+for off in slices:
+    n = struct.unpack_from('<I', d, off + 16)[0]
+    p = off + 32
+    found = False
+    for _ in range(n):
+        cmd, size = struct.unpack_from('<II', d, p)
+        if cmd == 0x1d:
+            dataoff, datasize = struct.unpack_from('<II', d, p + 8)
+            blob = d[off+dataoff:off+dataoff+datasize]
+            # 真实签名 blob：magic fade0cc0（SuperSignature/ldid 均产生）
+            found = datasize > 16 and blob[:4] == b'\xfa\xde\x0c\xc0'
+        p += size
+    if not found:
+        ok = False
+print("YES" if ok else "NO")
 EOF
 }
 
@@ -83,13 +99,21 @@ done
   [ "$(has_arm64e "$BUNDLE/iOS26ClockPrefs")" = "YES" ] && echo "PASS: bundle 含 arm64e" || { echo "WARN: bundle 无 arm64e"; }
 }
 [ -f "$BUNDLE/zh-Hans.lproj/Localizable.strings" ] && {
+  # theos 可能把 strings 转成 bplist（本地）或保留 UTF-8（CI/新版 theos）
   python3 - "$BUNDLE/zh-Hans.lproj/Localizable.strings" <<'EOF' && echo "PASS: 汉化内容有效" || { echo "FAIL: 汉化内容异常"; fail=1; }
-import sys, plistlib
-try:
-    d = plistlib.load(open(sys.argv[1], 'rb'))
-except Exception:
-    sys.exit(1)
-sys.exit(0 if any('时钟' in str(v) for v in d.values()) else 1)
+import sys
+raw = open(sys.argv[1], 'rb').read()
+ok = False
+if raw[:8] == b'bplist00':
+    import plistlib
+    try:
+        d = plistlib.loads(raw)
+        ok = any('时钟' in str(v) for v in d.values())
+    except Exception:
+        ok = False
+else:
+    ok = '时钟'.encode() in raw
+sys.exit(0 if ok else 1)
 EOF
 } || { echo "FAIL: 汉化内容异常"; fail=1; }
 
