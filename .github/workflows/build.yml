@@ -51,10 +51,38 @@ jobs:
           cp -r  ci/theos-vendor/vendor/mod/roothide        "$THEOS/vendor/mod/"
           cp -r  ci/theos-vendor/vendor/lib/iphone/roothide "$THEOS/vendor/lib/iphone/"
           cp -r  ci/theos-vendor/include/.                  "$THEOS/include/"
+          # 兜底：theos 的 vendor/include 是 git 子模块，浅克隆万一没拉全，这里补上
+          # （-n = 不覆盖已有文件）
+          if [ -d ci/theos-vendor/vendor_include ]; then
+            cp -Rn ci/theos-vendor/vendor_include/. "$THEOS/vendor/include/" 2>/dev/null || true
+          fi
           echo "--- 套用结果 ---"
-          ls "$THEOS/vendor/mod/roothide"
-          ls "$THEOS/vendor/lib/iphone/roothide"
-          ls "$THEOS/include/roothide.h" "$THEOS/include/CydiaSubstrate"
+          echo "[vendor/mod]";        ls "$THEOS/vendor/mod/roothide"
+          echo "[vendor/lib]";        ls "$THEOS/vendor/lib/iphone/roothide"
+          echo "[include]";           ls "$THEOS/include"
+
+      - name: 校验 roothide 头文件（不完整就早失败，别等到编译才报错）
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in include/roothide.h \
+                   include/roothide/roothide.h \
+                   include/roothide/stub.h \
+                   include/CydiaSubstrate/CydiaSubstrate.h \
+                   vendor/include/rootless.h \
+                   vendor/include/libroot/libroot.h; do
+            if [ -f "$THEOS/$f" ]; then
+              echo "  OK   $f"
+            else
+              echo "  MISS $f"
+              missing=1
+            fi
+          done
+          if [ "$missing" != "0" ]; then
+            echo "::error::roothide 头文件不完整，构建必然失败"
+            exit 1
+          fi
+          echo "== 头文件齐备 =="
 
       - name: 显示工具链版本（关键：看 ld64）
         run: |
