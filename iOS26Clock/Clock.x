@@ -601,7 +601,7 @@ static void CLReconcilePreferenceReload(void) {
 
 // 临时调试：关键节点落盘（判断注入与钩子触达）
 static void CLDebugMark(NSString *tag) {
-    NSString *line = [NSString stringWithFormat:@"%@ %@\n",
+    NSString *line = [NSString stringWithFormat:@"%.0f %@\n",
                       [NSDate date].timeIntervalSince1970, tag];
     NSString *path = @"/var/mobile/Library/Preferences/com.ios26.clock.debug.log";
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
