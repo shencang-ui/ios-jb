@@ -7,6 +7,12 @@
 "prefs.clock.font_width" = "Width";
 "prefs.clock.font_height" = "Height";
 "prefs.clock.font_softness" = "Softness";
+"prefs.clock.font_size.desc" = "Overall size of clock digits (scale)";
+"prefs.clock.font_weight.desc" = "Stroke thickness (higher = bolder)";
+"prefs.clock.font_width.desc" = "Horizontal glyph width (lower = narrower)";
+"prefs.clock.font_height.desc" = "Vertical glyph height";
+"prefs.clock.font_softness.desc" = "Edge softness / roundness";
+"prefs.slider.range" = "Range: %@ (tap the value on the right to type it in)";
 "prefs.clock.date_section" = "Date";
 "prefs.clock.date_enabled" = "Custom Date Format";
 "prefs.clock.date_format" = "Date Format";

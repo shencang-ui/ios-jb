@@ -11,7 +11,8 @@
 @property (nonatomic, readonly) NSDictionary *localizations;
 - (PSSpecifier *)sliderSpecWithTitle:(NSString *)title key:(NSString *)key
                                   min:(CGFloat)min max:(CGFloat)max
-                              default:(CGFloat)def;
+                              default:(CGFloat)def
+                                 desc:(NSString *)desc;
 - (void)handleRespringPressed;
 @end
 
@@ -77,19 +78,24 @@
 
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_size", @"Font Size")
-        key:@"Clock.VariableFont.SizeScale" min:0.8 max:2.0 default:1.4]];
+        key:@"Clock.VariableFont.SizeScale" min:0.8 max:2.0 default:1.4
+        desc:CLLocalized(@"prefs.clock.font_size.desc", @"Overall size of clock digits (scale)")]];
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_weight", @"Weight")
-        key:@"Clock.VariableFont.Weight" min:1.0 max:1000.0 default:750.0]];
+        key:@"Clock.VariableFont.Weight" min:1.0 max:1000.0 default:750.0
+        desc:CLLocalized(@"prefs.clock.font_weight.desc", @"Stroke thickness (higher = bolder)")]];
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_width", @"Width")
-        key:@"Clock.VariableFont.Width" min:60.0 max:100.0 default:100.0]];
+        key:@"Clock.VariableFont.Width" min:60.0 max:100.0 default:100.0
+        desc:CLLocalized(@"prefs.clock.font_width.desc", @"Horizontal glyph width (lower = narrower)")]];
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_height", @"Height")
-        key:@"Clock.VariableFont.Height" min:100.0 max:500.0 default:350.0]];
+        key:@"Clock.VariableFont.Height" min:100.0 max:500.0 default:350.0
+        desc:CLLocalized(@"prefs.clock.font_height.desc", @"Vertical glyph height")]];
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_softness", @"Softness")
-        key:@"Clock.VariableFont.Softness" min:0.0 max:100.0 default:56.0]];
+        key:@"Clock.VariableFont.Softness" min:0.0 max:100.0 default:56.0
+        desc:CLLocalized(@"prefs.clock.font_softness.desc", @"Edge softness / roundness")]];
 
     [specs addObject:[PSSpecifier groupSpecifierWithName:
         CLLocalized(@"prefs.clock.date_section", @"Date Format")]];
@@ -107,6 +113,8 @@
                                                                cell:PSTitleValueCell
                                                                edit:nil];
     dateFormat.name = CLLocalized(@"prefs.clock.date_format", @"Date Format");
+    dateFormat.identifier = @"Lockscreen.Clock.DateFormat.Format";
+    [dateFormat setProperty:@"Lockscreen.Clock.DateFormat.Format" forKey:@"key"];
     dateFormat.buttonAction = @selector(handleDateFormatPressed);
     NSString *currentFormat = CL_prefString(@"Lockscreen.Clock.DateFormat.Format", @"");
     [dateFormat setProperty:currentFormat ?: @"" forKey:@"detailText"];
@@ -137,31 +145,51 @@
                                                           cell:PSSwitchCell
                                                           edit:nil];
     spec.name = title;
+    spec.identifier = key;
+    [spec setProperty:key forKey:@"key"];
+    [spec setProperty:@YES forKey:@"default"];
     return spec;
 }
 
+// 自定义滑条：说明 + 取值范围 + 右侧数值（点击可输入），cellClass = CLSliderCell
 - (PSSpecifier *)sliderSpecWithTitle:(NSString *)title key:(NSString *)key
                                   min:(CGFloat)min max:(CGFloat)max
-                              default:(CGFloat)def {
-    PSSpecifier *spec = [PSSpecifier preferenceSpecifierNamed:key
-                                                        target:self
-                                                            set:@selector(setPrefValue:specifier:)
-                                                            get:@selector(readPrefValue:)
+                              default:(CGFloat)def
+                                 desc:(NSString *)desc {
+    PSSpecifier *spec = [PSSpecifier preferenceSpecifierNamed:title
+                                                        target:nil
+                                                            set:nil
+                                                            get:nil
                                                         detail:nil
-                                                          cell:PSSliderCell
+                                                          cell:PSTableCell
                                                           edit:nil];
     spec.name = title;
+    spec.identifier = key;
+    [spec setProperty:key forKey:@"key"];
     [spec setProperty:@(min) forKey:@"min"];
     [spec setProperty:@(max) forKey:@"max"];
     [spec setProperty:@(def) forKey:@"default"];
+    [spec setProperty:@(84.0) forKey:@"height"];
+    [spec setProperty:@"CLSliderCell" forKey:@"cellClass"];
+
+    NSString *range;
+    if ((max - min) <= 4.0) range = [NSString stringWithFormat:@"%.2f ~ %.2f", min, max];
+    else                    range = [NSString stringWithFormat:@"%.0f ~ %.0f", min, max];
+    NSString *rangeFmt = CLLocalized(@"prefs.slider.range", @"Range: %@");
+    NSString *fullDesc = [NSString stringWithFormat:@"%@\n%@",
+                          desc ?: @"", [NSString stringWithFormat:rangeFmt, range]];
+    [spec setProperty:fullDesc forKey:@"desc"];
+    [spec setProperty:rangeFmt forKey:@"rangeFmt"];
+    [spec setProperty:CLLocalized(@"prefs.button.cancel", @"Cancel") forKey:@"cancelTitle"];
+    [spec setProperty:CLLocalized(@"prefs.button.save", @"Save") forKey:@"saveTitle"];
     return spec;
 }
 
 #pragma mark - preference read/write (domain + live reload)
 
 - (id)readPrefValue:(PSSpecifier *)spec {
-    NSString *key = spec.identifier;
-    if (!key) return [spec propertyForKey:@"default"];
+    NSString *key = [spec propertyForKey:@"key"] ?: spec.identifier;
+    if (!key.length) return [spec propertyForKey:@"default"];
     id value = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key,
                                                           (__bridge CFStringRef)CLPrefsDomain));
     if (value) return value;
@@ -169,8 +197,8 @@
 }
 
 - (void)setPrefValue:(id)value specifier:(PSSpecifier *)spec {
-    NSString *key = spec.identifier;
-    if (!key) return;
+    NSString *key = [spec propertyForKey:@"key"] ?: spec.identifier;
+    if (!key.length) return;
     CLSetPreferenceValue(key, value);
 }
 
