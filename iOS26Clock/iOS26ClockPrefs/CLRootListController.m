@@ -139,7 +139,7 @@
                                                             set:nil
                                                             get:nil
                                                         detail:nil
-                                                          cell:PSGroupCell
+                                                          cell:PSSliderCell
                                                           edit:nil];
     spec.name = title;
     spec.identifier = key;
