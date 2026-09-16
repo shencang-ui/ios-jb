@@ -32,7 +32,7 @@
 // ------------------------------------------------------------------ 基础设施
 
 static BOOL gOn      = NO;   // 总开关（有 btfix.off 就 NO）
-static BOOL gGuard   = YES;  // 是否修正 backdrop 层 frame
+static BOOL gGuard   = NO;   // 自愈：**默认关闭**，只有 btfix.guard 存在才开
 static int  gLines   = 0;    // 已写行数（防日志爆掉）
 static int  gGuardN  = 0;    // 已修正次数
 
@@ -289,14 +289,18 @@ static int BTFixLayers(CALayer *l, CGRect full, int depth) {
         }
 
         gOn = YES;
-        // 可选：只诊断、不自愈
+        // ★ 自愈默认关闭：只有显式放 btfix.guard 才启用。
+        //   这样"装上本插件"本身 = 只加了一份日志，零行为变化，主力机也安全。
+        if (BTFileExists(BTFIX_DIR "/btfix.guard")) gGuard = YES;
+        // 兼容旧开关：btfix.noguard 强制关掉自愈
         if (BTFileExists(BTFIX_DIR "/btfix.noguard")) gGuard = NO;
         // 截断旧日志
         int fd = open(BTFIX_LOG, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd >= 0) close(fd);
 
-        BTLog("=== BigTimeFix 0.1.0 启动 === guard=%d  BigTime 类: glass=%s hub=%s backdrop=%s observer=%s driver=%s",
-              gGuard,
+        BTLog("=== BigTimeFix 0.2.0 启动 === 自愈=%s（放 btfix.guard 开启）"
+              "  BigTime 类: glass=%s hub=%s backdrop=%s observer=%s driver=%s",
+              gGuard ? "开" : "关",
               glass ? "有" : "无",
               hub ? "有" : "无",
               objc_getClass("LGClockBackdropView") ? "有" : "无",
