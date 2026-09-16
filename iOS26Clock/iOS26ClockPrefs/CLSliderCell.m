@@ -64,6 +64,11 @@
     self.detailTextLabel.text = nil;
     self.detailTextLabel.hidden = YES;
     self.imageView.hidden = YES;
+    // 关键：显式打开交互（PS 可能对非标准 cell 关掉了 userInteraction）
+    self.userInteractionEnabled = YES;
+    self.contentView.userInteractionEnabled = YES;
+    CLDebugMark([NSString stringWithFormat:@"cellsetup id=%@ key=%@",
+                 _spec.identifier ?: @"?", _key ?: @"?"]);
 
     _key    = [_spec propertyForKey:@"key"];
     _min    = [[_spec propertyForKey:@"min"] doubleValue];
@@ -120,6 +125,8 @@
 
 - (void)layoutSubviews {
     [super layoutSubviews];
+    self.userInteractionEnabled = YES;
+    self.contentView.userInteractionEnabled = YES;
     CGFloat w = self.contentView.bounds.size.width;
     CGFloat rightZone = 88; // 数值列固定宽度（留出空间）
     _titleLabel.frame = CGRectMake(16, 7, w - rightZone - 24, 18);
@@ -127,6 +134,16 @@
     _rangeLabel.frame = CGRectMake(16, 44, w - rightZone - 24, 15);
     _slider.frame     = CGRectMake(16, 66, w - rightZone - 16, 26);
     _valueLabel.frame = CGRectMake(w - rightZone - 2, 64, rightZone, 28);
+    [_slider.superview bringSubviewToFront:_slider];
+    [_valueLabel.superview bringSubviewToFront:_valueLabel];
+    static BOOL reported = NO;
+    if (!reported) {
+        reported = YES;
+        CLDebugMark([NSString stringWithFormat:@"celllayout cell=%@ slider=%@ value=%@",
+                     NSStringFromCGRect(self.bounds),
+                     NSStringFromCGRect(_slider.frame),
+                     NSStringFromCGRect(_valueLabel.frame)]);
+    }
 }
 
 - (NSString *)cl_stringForValue:(double)value {
