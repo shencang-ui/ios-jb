@@ -1,12 +1,11 @@
-name: Build iOS26Clock
+name: Build BigTimeFix
 
-# 在 GitHub 的 macOS 运行器上构建 —— 那边的 ld64 是现代版本，
-# 天生产出 arm64e「新 ABI」(cpusubtype 0x80000002)，
-# 从根上避免 Linux 老工具链导致的字面量/PAC 崩溃问题。
+# BigTime 伴侣修复插件 —— 在 GitHub 的 macOS 运行器上构建，
+# ld64 天生产出 arm64e「新 ABI」(cpusubtype 0x80000002)。
 
 on:
   push:
-    branches: [ ios26clock ]
+    branches: [ bigtimefix ]
   workflow_dispatch:
 
 jobs:
@@ -30,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           # theos 是 --recursive 克隆的，sdks 子模块（含全部 SDK）已在 $THEOS/sdks；
-          # 之前在这里重复 clone 同一目录导致 exit 128，改为校验 + 兜底全量克隆
+          # 不要在这里重复 clone 同一目录（会导致 exit 128）
           if [ ! -d "$THEOS/sdks/iPhoneOS16.5.sdk" ]; then
             rm -rf "$THEOS/sdks"
             git clone --depth 1 https://github.com/theos/sdks.git "$THEOS/sdks"
@@ -51,8 +50,6 @@ jobs:
           cp -r  ci/theos-vendor/vendor/mod/roothide        "$THEOS/vendor/mod/"
           cp -r  ci/theos-vendor/vendor/lib/iphone/roothide "$THEOS/vendor/lib/iphone/"
           cp -r  ci/theos-vendor/include/.                  "$THEOS/include/"
-          # 兜底：theos 的 vendor/include 是 git 子模块，浅克隆万一没拉全，这里补上
-          # （-n = 不覆盖已有文件）
           if [ -d ci/theos-vendor/vendor_include ]; then
             cp -Rn ci/theos-vendor/vendor_include/. "$THEOS/vendor/include/" 2>/dev/null || true
           fi
@@ -61,7 +58,7 @@ jobs:
           echo "[vendor/lib]";        ls "$THEOS/vendor/lib/iphone/roothide"
           echo "[include]";           ls "$THEOS/include"
 
-      - name: 校验 roothide 头文件（不完整就早失败，别等到编译才报错）
+      - name: 校验 roothide 头文件（不完整就早失败）
         run: |
           set -euo pipefail
           missing=0
@@ -93,61 +90,14 @@ jobs:
           echo "== clang =="
           xcrun clang --version | head -3
 
-      - name: 构建
-        run: |
-          set -euo pipefail
-          cd iOS26Clock
-          make package ARCHS="arm64e" TARGET="iphone:clang:16.5:14.0" FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
-          ls -la packages/
-
-      - name: 校验 arm64e ABI（必须是 0x80000002，否则设备上会崩）
-        run: |
-          set -euo pipefail
-          DEB=$(ls -t iOS26Clock/packages/*.deb | head -1)
-          echo "deb: $DEB"
-          work=$(mktemp -d)
-          dpkg-deb -R "$DEB" "$work/root" 2>/dev/null || (cd "$work" && ar x "$OLDPWD/$DEB" && tar xf data.tar.* -C root 2>/dev/null || true)
-          python3 - "$work" <<'PY'
-          import glob, os, struct, sys
-          root = sys.argv[1]
-          files = glob.glob(os.path.join(root, '**', '*.dylib'), recursive=True) + \
-                  glob.glob(os.path.join(root, '**', 'iOS26ClockPrefs'), recursive=True)
-          bad = []
-          for p in files:
-              if not os.path.isfile(p):
-                  continue
-              with open(p, 'rb') as f:
-                  head = f.read(16)
-              if len(head) < 16:
-                  continue
-              cpu, sub = struct.unpack_from('<II', head, 4)
-              name = os.path.basename(os.path.normpath(p))
-              print("  %-24s cpusubtype=0x%08x" % (name, sub))
-              if sub != 0x80000002:
-                  bad.append((name, sub))
-          if bad:
-              print("\n!! 以下产物不是 arm64e 新 ABI，设备上会崩：")
-              for n, s in bad:
-                  print("   %s -> 0x%08x" % (n, s))
-              sys.exit(1)
-          print("\n== ABI 校验通过：全部是 arm64e 新 ABI (0x80000002) ==")
-          PY
-
-      - name: 上传 deb
-        uses: actions/upload-artifact@v4
-        with:
-          name: iOS26Clock-deb
-          path: iOS26Clock/packages/*.deb
-          if-no-files-found: error
-
-      - name: 构建 BigTimeFix（BigTime 伴侣修复插件）
+      - name: 构建 BigTimeFix
         run: |
           set -euo pipefail
           cd BigTimeFix
           make package ARCHS="arm64e" TARGET="iphone:clang:16.5:14.0" FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
           ls -la packages/
 
-      - name: 校验 BigTimeFix arm64e ABI
+      - name: 校验 BigTimeFix arm64e ABI（必须是 0x80000002）
         run: |
           set -euo pipefail
           DEB=$(ls -t BigTimeFix/packages/*.deb | head -1)
@@ -173,7 +123,7 @@ jobs:
           print("\n== BigTimeFix ABI 校验通过 (0x80000002) ==")
           PY
 
-      - name: 上传 BigTimeFix deb
+      - name: 上传 deb
         uses: actions/upload-artifact@v4
         with:
           name: BigTimeFix-deb
