@@ -510,55 +510,82 @@ static int BTFixLayers(CALayer *l, CGRect full, int depth) {
 
 // ------------------------------------------------------------------ 构造
 
+// ------------------------------------------------------------------ 安装 hook（支持延后重试）
+//
+// ⚠️ 为什么要两段式：
+//   本插件 hook 的是 **BigTime 自己的类**。如果 ellekit 恰好先注入我们、后注入 BigTime，
+//   %ctor 执行时 objc_getClass() 还是 nil。若此时直接 return，hook 就**永远不会再装**，
+//   现象是"插件装了但一点反应都没有"——静默失败，最难排查。
+//   （目前文件名排序 BigTime.dylib < BigTimeFix.dylib，通常是 BigTime 先加载，
+//     但绝不能依赖加载顺序。）所以：先同步试一次，没成就后台每 0.5s 重试，最多 60 秒。
+
+static BOOL gInited = NO;
+
+static void BTInstallHooks(void) {
+    if (gInited) return;
+    Class glass = objc_getClass("LGClockGlassView");
+    Class hub   = objc_getClass("LGSharedDisplayLinkHub");
+    if (!glass && !hub) return;      // BigTime 还没加载 → 交给外面重试
+
+    gInited = YES;   // 先置位：重复 %init 会导致 hook 自己调自己
+
+    gOn = YES;
+    // ★ layer 自愈默认关闭：只有显式放 btfix.guard 才启用
+    if (BTFileExists(BTFIX_DIR "/btfix.guard"))      gGuard = YES;
+    if (BTFileExists(BTFIX_DIR "/btfix.noguard"))    gGuard = NO;
+    // 字体重定向默认开启；放 btfix.noredirect 可单独关掉
+    if (BTFileExists(BTFIX_DIR "/btfix.noredirect")) gRedirect = NO;
+
+    // 截断旧日志
+    int fd = open(BTFIX_LOG, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) close(fd);
+
+    // 记下本次 jbroot 真实根（每次越狱随机，这里现算）
+    const char *jb = jbroot("/");
+    BTLog("=== BigTimeFix 0.4.1 启动 === 自愈=%s 字体重定向=%s"
+          "  BigTime 类: glass=%s hub=%s backdrop=%s observer=%s driver=%s",
+          gGuard ? "开" : "关(放 btfix.guard 开)",
+          gRedirect ? "开" : "关",
+          glass ? "有" : "无",
+          hub ? "有" : "无",
+          objc_getClass("LGClockBackdropView") ? "有" : "无",
+          objc_getClass("LGClockScrollObserver") ? "有" : "无",
+          objc_getClass("LGDisplayLinkDriver") ? "有" : "无");
+    BTLog("本次 jbroot 真实根: %s", jb ?: "(null)");
+    BTLog("BigTime 请求的字体路径: %s  (存在=%s)", "/var/mobile/Axs/字体素材/axs66.otf",
+          BTStatExists("/var/mobile/Axs/字体素材/axs66.otf") ? "是" : "否");
+    NSString *ov = BTFontDirOverride();
+    if (ov) BTLog("btfix.fontdir 覆盖: %@", ov);
+    BTLog("开始自动定位字体：");
+    BTResolveFont(YES);
+
+    %init(BTMain);
+    %init(BTFont);
+}
+
 %ctor {
     @autoreleasepool {
         if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
+        if (BTFileExists(BTFIX_OFF)) return;      // 急停：不装任何 hook
 
-        BOOL off = BTFileExists(BTFIX_OFF);
-        if (off) {
-            // 急停：不初始化任何 hook
-            return;
-        }
+        BTInstallHooks();                          // 1) 先同步试一次（正常情况下这一步就成了）
+        if (gInited) return;
 
-        Class glass = objc_getClass("LGClockGlassView");
-        Class hub   = objc_getClass("LGSharedDisplayLinkHub");
-        if (!glass && !hub) {
-            // BigTime 没装/没加载，什么都不做
-            return;
-        }
-
-        gOn = YES;
-        // ★ layer 自愈默认关闭：只有显式放 btfix.guard 才启用。
-        if (BTFileExists(BTFIX_DIR "/btfix.guard")) gGuard = YES;
-        // 兼容旧开关：btfix.noguard 强制关掉自愈
-        if (BTFileExists(BTFIX_DIR "/btfix.noguard")) gGuard = NO;
-        // 字体重定向默认开启；放 btfix.noredirect 可单独关掉
-        if (BTFileExists(BTFIX_DIR "/btfix.noredirect")) gRedirect = NO;
-
-        // 截断旧日志
-        int fd = open(BTFIX_LOG, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (fd >= 0) close(fd);
-
-        // 记下本次 jbroot 真实根（每次越狱随机，这里现算）
-        const char *jb = jbroot("/");
-        BTLog("=== BigTimeFix 0.4.0 启动 === 自愈=%s 字体重定向=%s"
-              "  BigTime 类: glass=%s hub=%s backdrop=%s observer=%s driver=%s",
-              gGuard ? "开" : "关(放 btfix.guard 开)",
-              gRedirect ? "开" : "关",
-              glass ? "有" : "无",
-              hub ? "有" : "无",
-              objc_getClass("LGClockBackdropView") ? "有" : "无",
-              objc_getClass("LGClockScrollObserver") ? "有" : "无",
-              objc_getClass("LGDisplayLinkDriver") ? "有" : "无");
-        BTLog("本次 jbroot 真实根: %s", jb ?: "(null)");
-        BTLog("BigTime 请求的字体路径: %s  (存在=%s)", "/var/mobile/Axs/字体素材/axs66.otf",
-              BTStatExists("/var/mobile/Axs/字体素材/axs66.otf") ? "是" : "否");
-        NSString *ov = BTFontDirOverride();
-        if (ov) BTLog("btfix.fontdir 覆盖: %@", ov);
-        BTLog("开始自动定位字体：");
-        BTResolveFont(YES);
-
-        %init(BTMain);
-        %init(BTFont);
+        // 2) BigTime 可能还没加载：后台重试，**不阻塞 SpringBoard 启动**
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            for (int i = 0; i < 120; i++) {        // 0.5s × 120 = 最长 60 秒
+                usleep(500 * 1000);
+                BTInstallHooks();
+                if (gInited) return;
+            }
+            // 超时：说明 BigTime 根本没装，写一行给个交代（此时 gOn 还是 NO，绕过 BTLog）
+            int fd = open(BTFIX_LOG, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (fd >= 0) {
+                const char *m = "[BigTimeFix] 等了 60 秒仍没看到 BigTime 的类（LGClockGlassView）——"
+                                "BigTime 没装或没加载，本插件未安装任何 hook（无副作用）。\n";
+                write(fd, m, strlen(m));
+                close(fd);
+            }
+        });
     }
 }
