@@ -687,7 +687,10 @@ static void CLRespringRequested(CFNotificationCenterRef center, void *observer,
 }
 
 // 临时调试：关键节点落盘（判断注入与钩子触达）
+// 通道1: CFPreferences（沙盒免疫，必达）；通道2: Accessibility 文件
 static void CLDebugMark(NSString *tag) {
+    CLSetPreferenceValue([@"Debug.Mark " stringByAppendingString:tag],
+                         @([NSDate date].timeIntervalSince1970));
     NSString *line = [NSString stringWithFormat:@"%.0f %@\n",
                       [NSDate date].timeIntervalSince1970, tag];
     NSString *path = @"/var/mobile/Library/Accessibility/com.ios26.clock.debug.log";
