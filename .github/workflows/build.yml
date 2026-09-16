@@ -139,3 +139,43 @@ jobs:
           name: iOS26Clock-deb
           path: iOS26Clock/packages/*.deb
           if-no-files-found: error
+
+      - name: 构建 BigTimeFix（BigTime 伴侣修复插件）
+        run: |
+          set -euo pipefail
+          cd BigTimeFix
+          make package ARCHS="arm64e" TARGET="iphone:clang:16.5:14.0" FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+          ls -la packages/
+
+      - name: 校验 BigTimeFix arm64e ABI
+        run: |
+          set -euo pipefail
+          DEB=$(ls -t BigTimeFix/packages/*.deb | head -1)
+          echo "deb: $DEB"
+          work=$(mktemp -d)
+          dpkg-deb -R "$DEB" "$work/root" 2>/dev/null || (cd "$work" && ar x "$OLDPWD/$DEB" && tar xf data.tar.* -C root 2>/dev/null || true)
+          python3 - "$work" <<'PY'
+          import glob, os, struct, sys
+          root = sys.argv[1]
+          files = glob.glob(os.path.join(root, '**', '*.dylib'), recursive=True)
+          bad = []
+          for p in files:
+              with open(p, 'rb') as f:
+                  head = f.read(16)
+              cpu, sub = struct.unpack_from('<II', head, 4)
+              name = os.path.basename(p)
+              print("  %-24s cpusubtype=0x%08x" % (name, sub))
+              if sub != 0x80000002:
+                  bad.append((name, sub))
+          if bad:
+              print("\n!! 不是 arm64e 新 ABI，设备上会崩")
+              sys.exit(1)
+          print("\n== BigTimeFix ABI 校验通过 (0x80000002) ==")
+          PY
+
+      - name: 上传 BigTimeFix deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: BigTimeFix-deb
+          path: BigTimeFix/packages/*.deb
+          if-no-files-found: error
