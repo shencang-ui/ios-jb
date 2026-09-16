@@ -49,7 +49,16 @@
 - (void)cl_setup {
     self.selectionStyle = UITableViewCellSelectionStyleNone;
     self.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
-    // 隐藏基类（UITableViewCell/PSTableCell）自带的内容，避免与自绘控件重叠
+    // 关键：基类 PSTableCell 会按 specifier.cellType（PSSliderCell）自建一套
+    // 滑条/文本 UI，其 get/set 均为空（拖动无效）且与自绘控件重叠——全部移除
+    for (UIView *v in [NSArray arrayWithArray:self.contentView.subviews]) [v removeFromSuperview];
+    for (UIView *v in [NSArray arrayWithArray:self.subviews]) {
+        if (v != self.contentView) [v removeFromSuperview];
+    }
+    for (UIGestureRecognizer *g in [NSArray arrayWithArray:self.gestureRecognizers]) {
+        [self removeGestureRecognizer:g];
+    }
+    // 隐藏基类自带的标准 label
     self.textLabel.text = nil;
     self.textLabel.hidden = YES;
     self.detailTextLabel.text = nil;
