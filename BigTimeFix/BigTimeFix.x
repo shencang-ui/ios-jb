@@ -1,40 +1,53 @@
-// BigTimeFix — 伴侣插件：诊断 + 修正 BigTime 锁屏时钟的"阴影边框"
+// BigTimeFix — BigTime 伴侣插件
 //
-// 背景结论（已实测）：
-//   * 掩码缓存 /var/mobile/Library/Accessibility/liquidglass-clock-mask.bin 的格式已解出：
-//       [28 字节头: "3CGL" | w | h(1172) | 2.0 | 24.0 | count] + [w*h 字节灰度遮罩]
-//     还原出来是干净正确的字形（"19:32"），**遮罩本身没问题**
-//   * 现象是一条**横贯整屏的硬边**，上下两种透光度 —— 属于玻璃合成层的问题，
-//     最可能是某个 backdrop/模糊层的 frame 没有跟着视图 bounds 更新
+// 做三件事：
+//   1) **字体路径重定向（v0.3.0 新增，默认开启）**
+//      BigTime 写死的字体请求路径是 /var/mobile/Axs/字体素材/axs66.otf（UTF-16 常量，
+//      从 BigTime.dylib @0x20158 抠出来的）。这是个"明面路径"，容易被越狱检测盯上。
+//      本插件把对 /var/mobile/Axs 开头的访问改写到 **jbroot 真实越狱路径**：
+//        <jbroot真实根>/var/mobile/Axs/字体素材/axs66.otf
+//      jbroot 真实根形如 /var/mobile/Containers/Shared/AppGroup/.jbroot-XXXXXXXXXXXX，
+//      每台设备随机 → 运行时用 roothide 的 jbroot() 算，不写死。
+//      真实路径下不存在就**回退原路径**，不会因为没放字体而彻底失效。
+//   2) 只读日志：层树 / 几何变化 / 高度轴 / 遮罩重建耗时 / 字体 / FPS
+//      → /var/mobile/Library/Accessibility/btfix.log
+//   3) layer 自愈（默认关闭）：backdrop/模糊层 frame 没盖住 bounds 时拉回
 //
-// 本插件做两件事：
-//   1) 只读日志：把层树与几何变化记录下来，供定位（写 /var/mobile/Library/Accessibility/btfix.log）
-//   2) 一处安全自愈：layoutSubviews 后，如果发现 backdrop/模糊层的 frame 没盖住视图 bounds，
-//      用 CATransaction 关动画把它拉回 bounds（幂等；没有不匹配就什么都不做）
-//
-// 急停：touch /var/mobile/Library/Accessibility/btfix.off  然后 respring → 插件完全不动作
+// 开关（放在 /var/mobile/Library/Accessibility/，改完 respring）：
+//   btfix.off        急停：插件完全不动作
+//   btfix.noredirect 只关掉字体重定向
+//   btfix.guard      开启 layer 自愈（默认关）
+//   btfix.noguard    强制关掉 layer 自愈
+//   btfix.fontdir    内容写一个目录路径 → 覆盖重定向目标（把 /var/mobile/Axs 后面的部分接上去）
 
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <CoreText/CoreText.h>
 #import <objc/runtime.h>
+#include <roothide.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <math.h>
+#include <sys/stat.h>
 
 #define BTFIX_DIR   "/var/mobile/Library/Accessibility"
 #define BTFIX_OFF   BTFIX_DIR "/btfix.off"
 #define BTFIX_LOG   BTFIX_DIR "/btfix.log"
 
+// BigTime 内置的字体请求路径（UTF-16 常量，从 BigTime.dylib @0x20158 抠出来的）
+#define BT_FONT_REQ "/var/mobile/Axs"
+
 // ------------------------------------------------------------------ 基础设施
 
-static BOOL gOn      = NO;   // 总开关（有 btfix.off 就 NO）
-static BOOL gGuard   = NO;   // 自愈：**默认关闭**，只有 btfix.guard 存在才开
-static int  gLines   = 0;    // 已写行数（防日志爆掉）
-static int  gGuardN  = 0;    // 已修正次数
+static BOOL gOn       = NO;   // 总开关（有 btfix.off 就 NO）
+static BOOL gGuard    = NO;   // layer 自愈：**默认关闭**，只有 btfix.guard 存在才开
+static BOOL gRedirect = YES;  // 字体路径重定向：**默认开启**（窄过滤 + 有回退，安全）
+static int  gLines    = 0;    // 已写行数（防日志爆掉）
+static int  gGuardN   = 0;    // 已修正次数
+static int  gRedirN   = 0;    // 已重定向次数
 
 static void BTLog(const char *fmt, ...) {
     if (!gOn || gLines > 40000) return;
@@ -53,6 +66,90 @@ static void BTLog(const char *fmt, ...) {
 
 static BOOL BTFileExists(const char *p) {
     return access(p, F_OK) == 0;
+}
+
+// ------------------------------------------------------------------ 字体路径重定向
+//
+// 背景：BigTime 的字体请求路径是写死的 /var/mobile/Axs/字体素材/axs66.otf。
+// 这个"明面路径"会被越狱检测盯上。我们的做法：
+//   把对 /var/mobile/Axs 开头的访问，改写到 **jbroot 真实越狱路径** 下的同名位置，
+//   即 <jbroot真实根>/var/mobile/Axs/字体素材/axs66.otf
+//   （jbroot 真实根形如 /var/mobile/Containers/Shared/AppGroup/.jbroot-XXXXXXXXXXXX，
+//     每台设备随机，所以必须运行时算，不能写死。）
+//
+// 用 roothide/libroot 的 jbroot() 做转换（stub.h 里它会调到 libroot_dyn_jbrootpath）。
+// 目标不存在时**回退原路径**，保证不会因为没放字体而彻底失效。
+
+static BOOL BTStatExists(const char *p) {
+    struct stat st;
+    return p && stat(p, &st) == 0;
+}
+
+// 可选用配置文件覆盖：/var/mobile/Library/Accessibility/btfix.fontdir 里写一个目录
+static NSString *BTFontDirOverride(void) {
+    static NSString *cached = nil;
+    static BOOL inited = NO;
+    if (inited) return cached;
+    inited = YES;
+    int fd = open(BTFIX_DIR "/btfix.fontdir", O_RDONLY);
+    if (fd >= 0) {
+        char buf[PATH_MAX] = {0};
+        ssize_t n = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+        if (n > 0) {
+            while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == '\r' || buf[n-1] == ' ')) buf[--n] = 0;
+            if (n > 0 && buf[0] == '/') cached = [NSString stringWithUTF8String:buf];
+        }
+    }
+    return cached;
+}
+
+// 返回重定向后的路径；不需要/不可用则返回 nil（调用方回退原值）
+static NSString *BTRedirectPath(id pathOrURL) {
+    if (!gOn || !gRedirect) return nil;
+
+    NSString *p = nil;
+    if ([pathOrURL isKindOfClass:[NSURL class]]) {
+        NSURL *u = (NSURL *)pathOrURL;
+        if (!u.isFileURL) return nil;
+        p = u.path;
+    } else if ([pathOrURL isKindOfClass:[NSString class]]) {
+        p = (NSString *)pathOrURL;
+    } else {
+        return nil;
+    }
+    if (p.length == 0) return nil;
+
+    // ---- 窄过滤：只管 /var/mobile/Axs 这一条 ----
+    if (![p hasPrefix:@(BT_FONT_REQ)]) return nil;
+    // 已经是真实路径了就别再套一层
+    if ([p containsString:@".jbroot-"]) return nil;
+
+    NSString *target = nil;
+    NSString *ov = BTFontDirOverride();
+    if (ov) {
+        // 配置了自定义目录：把 /var/mobile/Axs 之后的部分接上去
+        NSString *tail = [p substringFromIndex:[@(BT_FONT_REQ) length]];
+        target = [ov stringByAppendingString:tail];
+    } else {
+        // 默认：同相对路径的 jbroot 真实路径
+        const char *real = jbroot(p.fileSystemRepresentation);
+        if (real) target = [NSString stringWithUTF8String:real];
+    }
+    if (target.length == 0 || [target isEqualToString:p]) return nil;
+
+    if (BTStatExists(target.fileSystemRepresentation)) {
+        if (gRedirN < 40) {
+            BTLog("REDIRECT %@  ->  %@", p, target);
+            gRedirN++;
+        }
+        return target;
+    }
+    if (gRedirN < 40) {
+        BTLog("REDIRECT-MISS %@  (真实路径下没有，回退原路径)", p);
+        gRedirN++;
+    }
+    return nil;
 }
 
 // ------------------------------------------------------------------ 层树处理
@@ -269,6 +366,87 @@ static int BTFixLayers(CALayer *l, CGRect full, int depth) {
 
 %end  // BTMain
 
+// ------------------------------------------------------------------ 字体重定向 hook 组
+//
+// 只拦截「会拿到文件路径」的那几个入口，且内部再做 /var/mobile/Axs 前缀过滤，
+// 所以对 SpringBoard 里其它任何文件访问都是零影响。
+
+%group BTFont
+
+%hook NSFileManager
+
+- (BOOL)fileExistsAtPath:(NSString *)path {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path);
+}
+
+- (BOOL)fileExistsAtPath:(NSString *)path isDirectory:(BOOL *)isDir {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path, isDir);
+}
+
+- (BOOL)isReadableFileAtPath:(NSString *)path {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path);
+}
+
+- (NSArray *)contentsOfDirectoryAtPath:(NSString *)path error:(NSError **)err {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path, err);
+}
+
+- (NSData *)contentsAtPath:(NSString *)path {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path);
+}
+
+- (NSDictionary *)attributesOfItemAtPath:(NSString *)path error:(NSError **)err {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path, err);
+}
+
+%end
+
+%hook NSData
+
++ (NSData *)dataWithContentsOfFile:(NSString *)path {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path);
+}
+
++ (NSData *)dataWithContentsOfFile:(NSString *)path options:(NSDataReadingOptions)opts error:(NSError **)err {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path, opts, err);
+}
+
++ (NSData *)dataWithContentsOfURL:(NSURL *)url {
+    NSString *m = BTRedirectPath(url);
+    return %orig(m ? [NSURL fileURLWithPath:m] : url);
+}
+
+- (NSData *)initWithContentsOfFile:(NSString *)path {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path);
+}
+
+%end
+
+%hook NSURL
+
++ (NSURL *)fileURLWithPath:(NSString *)path {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path);
+}
+
++ (NSURL *)fileURLWithPath:(NSString *)path isDirectory:(BOOL)isDir {
+    NSString *m = BTRedirectPath(path);
+    return %orig(m ?: path, isDir);
+}
+
+%end
+
+%end  // BTFont
+
 // ------------------------------------------------------------------ 构造
 
 %ctor {
@@ -289,24 +467,36 @@ static int BTFixLayers(CALayer *l, CGRect full, int depth) {
         }
 
         gOn = YES;
-        // ★ 自愈默认关闭：只有显式放 btfix.guard 才启用。
-        //   这样"装上本插件"本身 = 只加了一份日志，零行为变化，主力机也安全。
+        // ★ layer 自愈默认关闭：只有显式放 btfix.guard 才启用。
         if (BTFileExists(BTFIX_DIR "/btfix.guard")) gGuard = YES;
         // 兼容旧开关：btfix.noguard 强制关掉自愈
         if (BTFileExists(BTFIX_DIR "/btfix.noguard")) gGuard = NO;
+        // 字体重定向默认开启；放 btfix.noredirect 可单独关掉
+        if (BTFileExists(BTFIX_DIR "/btfix.noredirect")) gRedirect = NO;
+
         // 截断旧日志
         int fd = open(BTFIX_LOG, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd >= 0) close(fd);
 
-        BTLog("=== BigTimeFix 0.2.0 启动 === 自愈=%s（放 btfix.guard 开启）"
+        // 把真实越狱路径算出来记一笔，方便排查
+        const char *probe = jbroot("/var/mobile/Axs/字体素材/axs66.otf");
+        BOOL probeOK = probe && BTStatExists(probe);
+        BTLog("=== BigTimeFix 0.3.0 启动 === 自愈=%s 字体重定向=%s"
               "  BigTime 类: glass=%s hub=%s backdrop=%s observer=%s driver=%s",
-              gGuard ? "开" : "关",
+              gGuard ? "开" : "关(放 btfix.guard 开)",
+              gRedirect ? "开" : "关",
               glass ? "有" : "无",
               hub ? "有" : "无",
               objc_getClass("LGClockBackdropView") ? "有" : "无",
               objc_getClass("LGClockScrollObserver") ? "有" : "无",
               objc_getClass("LGDisplayLinkDriver") ? "有" : "无");
+        BTLog("jbroot 目标: %s   存在=%s", probe ?: "(null)", probeOK ? "是" : "否");
+        BTLog("原始路径  : %s   存在=%s", "/var/mobile/Axs/字体素材/axs66.otf",
+              BTStatExists("/var/mobile/Axs/字体素材/axs66.otf") ? "是" : "否");
+        NSString *ov = BTFontDirOverride();
+        if (ov) BTLog("btfix.fontdir 覆盖: %@", ov);
 
         %init(BTMain);
+        %init(BTFont);
     }
 }

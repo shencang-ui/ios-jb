@@ -1,8 +1,8 @@
 Package: com.ios26.btfix
 Name: BigTime 修复补丁
-Version: 0.2.0
+Version: 0.3.0
 Architecture: iphoneos-arm
-Description: 伴侣插件：诊断并修正 BigTime 锁屏时钟的"阴影边框"合成问题（只读日志 + 一处安全自愈），带急停开关
+Description: 伴侣插件：① 把 BigTime 的字体读取路径重定向到 jbroot 真实越狱路径（默认开启）② 只读诊断日志 ③ layer 自愈（默认关）；带急停开关
 Maintainer: ios26clock
 Author: ios26clock
 Section: Tweaks
