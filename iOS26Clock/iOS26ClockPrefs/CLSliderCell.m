@@ -138,8 +138,10 @@
                                      preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) wself = self;
     [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+        __strong typeof(wself) sself = wself;
+        if (!sself) return;
         textField.keyboardType = UIKeyboardTypeDecimalPad;
-        textField.text = [wself cl_stringForValue:wself->_slider.value];
+        textField.text = [sself cl_stringForValue:sself->_slider.value];
         textField.clearButtonMode = UITextFieldViewModeAlways;
     }];
     [alert addAction:[UIAlertAction actionWithTitle:cancelTtl
