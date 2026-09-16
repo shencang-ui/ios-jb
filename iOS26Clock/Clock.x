@@ -599,11 +599,29 @@ static void CLReconcilePreferenceReload(void) {
     }
 }
 
+// 临时调试：关键节点落盘（判断注入与钩子触达）
+static void CLDebugMark(NSString *tag) {
+    NSString *line = [NSString stringWithFormat:@"%@ %@\n",
+                      [NSDate date].timeIntervalSince1970, tag];
+    NSString *path = @"/var/mobile/Library/Preferences/com.ios26.clock.debug.log";
+    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        [line writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        return;
+    }
+    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:path];
+    if (!fh) return;
+    [fh seekToEndOfFile];
+    [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+    [fh closeFile];
+}
+#define CL_DEBUG_MARK_ONCE(tag) do { static BOOL seen = NO; if (!seen) { seen = YES; CLDebugMark(tag); } } while (0)
+
 %group CLClockRewrite
 
 %hook _UIAnimatingLabel
 - (void)setFont:(UIFont *)font {
     %orig(font);
+    CL_DEBUG_MARK_ONCE(@"hook:UIAnimatingLabel.setFont");
     CLSourceFontDidChange((UILabel *)self, font, @"setFont");
 }
 - (void)setText:(NSString *)text {
@@ -652,6 +670,7 @@ static void CLReconcilePreferenceReload(void) {
 %hook CSProminentTimeView
 - (void)didMoveToWindow {
     %orig;
+    CL_DEBUG_MARK_ONCE(@"hook:CSProminentTimeView.didMoveToWindow");
     CLHostDidMove((UIView *)self);
 }
 - (void)layoutSubviews {
@@ -707,6 +726,16 @@ static void CLReconcilePreferenceReload(void) {
 %ctor {
     @autoreleasepool {
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
+    {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "ctor os=%s font=%d ptv=%d datev=%d anim=%d",
+                 UIDevice.currentDevice.systemVersion.UTF8String ?: "?",
+                 (int)(CLVariableFontPath() != nil),
+                 (int)(NSClassFromString(@"CSProminentTimeView") != nil),
+                 (int)(NSClassFromString(@"SBFLockScreenDateView") != nil),
+                 (int)(NSClassFromString(@"_UIAnimatingLabel") != nil));
+        CLDebugMark([NSString stringWithUTF8String:buf]);
+    }
     CLLog(@"ctor os=%@ font=%@ hostModern=%@ hostLegacy=%@ animLabel=%@ enabled=%d variable=%d",
           UIDevice.currentDevice.systemVersion, CLVariableFontPath(),
           NSClassFromString(@"CSProminentTimeView"),

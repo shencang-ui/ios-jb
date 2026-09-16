@@ -3,6 +3,7 @@
 #import <Preferences/PSTableCell.h>
 #import <UIKit/UIKit.h>
 #import "../Shared/CLSharedSupport.h"
+#import "CLSliderCell.h"
 
 #define CLLocalized(key, fallback) \
     ([self.localizations objectForKey:key] ?: fallback)
@@ -170,7 +171,8 @@
     [spec setProperty:@(max) forKey:@"max"];
     [spec setProperty:@(def) forKey:@"default"];
     [spec setProperty:@(84.0) forKey:@"height"];
-    [spec setProperty:@"CLSliderCell" forKey:@"cellClass"];
+    // 注意：这个 Preferences 版本的 cellClass 必须是 Class 对象，字符串会崩
+    [spec setProperty:[CLSliderCell class] forKey:@"cellClass"];
 
     NSString *range;
     if ((max - min) <= 4.0) range = [NSString stringWithFormat:@"%.2f ~ %.2f", min, max];
