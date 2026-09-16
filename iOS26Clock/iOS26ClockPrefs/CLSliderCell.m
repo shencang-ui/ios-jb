@@ -49,6 +49,12 @@
 - (void)cl_setup {
     self.selectionStyle = UITableViewCellSelectionStyleNone;
     self.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    // 隐藏基类（UITableViewCell/PSTableCell）自带的内容，避免与自绘控件重叠
+    self.textLabel.text = nil;
+    self.textLabel.hidden = YES;
+    self.detailTextLabel.text = nil;
+    self.detailTextLabel.hidden = YES;
+    self.imageView.hidden = YES;
 
     _key    = [_spec propertyForKey:@"key"];
     _min    = [[_spec propertyForKey:@"min"] doubleValue];

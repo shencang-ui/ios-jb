@@ -1,5 +1,5 @@
 {
 	Filter = {
-		Bundles = ("com.apple.UIKit", "com.apple.assistivetouchd");
+		Bundles = ("com.apple.springboard", "com.apple.UIKit", "com.apple.assistivetouchd");
 	};
 }
