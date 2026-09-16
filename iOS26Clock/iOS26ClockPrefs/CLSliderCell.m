@@ -20,6 +20,7 @@
     NSInteger _decimals;
     UILabel *_titleLabel;
     UILabel *_descLabel;
+    UILabel *_rangeLabel;
     UILabel *_valueLabel;
     UISlider *_slider;
 }
@@ -42,7 +43,7 @@
 }
 
 + (CGFloat)preferredHeightForSpecifier:(PSSpecifier *)specifier {
-    return 84.0;
+    return 100.0;
 }
 
 - (void)cl_setup {
@@ -65,8 +66,15 @@
     _descLabel.text = [_spec propertyForKey:@"desc"] ?: @"";
     _descLabel.font = [UIFont systemFontOfSize:12];
     _descLabel.textColor = [UIColor secondaryLabelColor];
-    _descLabel.numberOfLines = 2;
+    _descLabel.numberOfLines = 1;
     [self.contentView addSubview:_descLabel];
+
+    _rangeLabel = [UILabel new];
+    _rangeLabel.text = [_spec propertyForKey:@"rangeText"] ?: @"";
+    _rangeLabel.font = [UIFont systemFontOfSize:11];
+    _rangeLabel.textColor = [UIColor tertiaryLabelColor];
+    _rangeLabel.numberOfLines = 1;
+    [self.contentView addSubview:_rangeLabel];
 
     _valueLabel = [UILabel new];
     _valueLabel.font = [UIFont monospacedDigitSystemFontOfSize:15 weight:UIFontWeightRegular];
@@ -99,10 +107,11 @@
     [super layoutSubviews];
     CGFloat w = self.contentView.bounds.size.width;
     CGFloat rightZone = 88; // 数值列固定宽度（留出空间）
-    _titleLabel.frame = CGRectMake(16, 5, w - rightZone - 24, 18);
-    _descLabel.frame  = CGRectMake(16, 24, w - rightZone - 24, 30);
-    _slider.frame     = CGRectMake(16, 56, w - rightZone - 16, 26);
-    _valueLabel.frame = CGRectMake(w - rightZone - 2, 54, rightZone, 28);
+    _titleLabel.frame = CGRectMake(16, 7, w - rightZone - 24, 18);
+    _descLabel.frame  = CGRectMake(16, 27, w - rightZone - 24, 16);
+    _rangeLabel.frame = CGRectMake(16, 44, w - rightZone - 24, 15);
+    _slider.frame     = CGRectMake(16, 66, w - rightZone - 16, 26);
+    _valueLabel.frame = CGRectMake(w - rightZone - 2, 64, rightZone, 28);
 }
 
 - (NSString *)cl_stringForValue:(double)value {

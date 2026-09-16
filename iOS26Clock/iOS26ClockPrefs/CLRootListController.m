@@ -98,29 +98,6 @@
         key:@"Clock.VariableFont.Softness" min:0.0 max:100.0 default:56.0
         desc:CLLocalized(@"prefs.clock.font_softness.desc", @"Edge softness / roundness")]];
 
-    [specs addObject:[PSSpecifier groupSpecifierWithName:
-        CLLocalized(@"prefs.clock.date_section", @"Date Format")]];
-
-    PSSpecifier *dateEnabled = [self toggleSpecWithTitle:
-        CLLocalized(@"prefs.clock.date_enabled", @"Custom Date Format")
-        key:@"Lockscreen.Clock.DateFormat.Enabled"];
-    [specs addObject:dateEnabled];
-
-    PSSpecifier *dateFormat = [PSSpecifier preferenceSpecifierNamed:@"Lockscreen.Clock.DateFormat.Format"
-                                                             target:self
-                                                                 set:@selector(setDateFormat:)
-                                                                 get:@selector(dateFormat)
-                                                             detail:nil
-                                                               cell:PSTitleValueCell
-                                                               edit:nil];
-    dateFormat.name = CLLocalized(@"prefs.clock.date_format", @"Date Format");
-    dateFormat.identifier = @"Lockscreen.Clock.DateFormat.Format";
-    [dateFormat setProperty:@"Lockscreen.Clock.DateFormat.Format" forKey:@"key"];
-    dateFormat.buttonAction = @selector(handleDateFormatPressed);
-    NSString *currentFormat = CL_prefString(@"Lockscreen.Clock.DateFormat.Format", @"");
-    [dateFormat setProperty:currentFormat ?: @"" forKey:@"detailText"];
-    [specs addObject:dateFormat];
-
     [specs addObject:[PSSpecifier groupSpecifierWithName:nil]];
 
     PSSpecifier *respring = [PSSpecifier preferenceSpecifierNamed:@"Respring"
@@ -177,11 +154,10 @@
     NSString *range;
     if ((max - min) <= 4.0) range = [NSString stringWithFormat:@"%.2f ~ %.2f", min, max];
     else                    range = [NSString stringWithFormat:@"%.0f ~ %.0f", min, max];
-    NSString *rangeFmt = CLLocalized(@"prefs.slider.range", @"Range: %@");
-    NSString *fullDesc = [NSString stringWithFormat:@"%@\n%@",
-                          desc ?: @"", [NSString stringWithFormat:rangeFmt, range]];
-    [spec setProperty:fullDesc forKey:@"desc"];
-    [spec setProperty:rangeFmt forKey:@"rangeFmt"];
+    NSString *rangeFmt = CLLocalized(@"prefs.slider.range", @"Range: %@ (tap the value to type)");
+    [spec setProperty:desc ?: @"" forKey:@"desc"];
+    [spec setProperty:[NSString stringWithFormat:rangeFmt, range] forKey:@"rangeText"];
+    [spec setProperty:@(100.0) forKey:@"height"];
     [spec setProperty:CLLocalized(@"prefs.button.cancel", @"Cancel") forKey:@"cancelTitle"];
     [spec setProperty:CLLocalized(@"prefs.button.save", @"Save") forKey:@"saveTitle"];
     return spec;
@@ -204,44 +180,7 @@
     CLSetPreferenceValue(key, value);
 }
 
-- (id)dateFormat {
-    return CL_prefString(@"Lockscreen.Clock.DateFormat.Format", @"");
-}
-
-- (void)setDateFormat:(NSString *)format {
-    CLSetPreferenceValue(@"Lockscreen.Clock.DateFormat.Format",
-                         format.length ? format : nil);
-    PSSpecifier *spec = [self specifierForID:@"Lockscreen.Clock.DateFormat.Format"];
-    if (spec) {
-        [spec setProperty:format ?: @"" forKey:@"detailText"];
-        [self reloadSpecifiers];
-    }
-}
-
 #pragma mark actions
-
-- (void)handleDateFormatPressed {
-    UIAlertController *alert =
-        [UIAlertController alertControllerWithTitle:
-            CLLocalized(@"prefs.clock.date_format", @"Date Format")
-            message:CLLocalized(@"prefs.clock.date_format_hint", @"Example: EEE MMM d")
-            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
-        textField.text = CL_prefString(@"Lockscreen.Clock.DateFormat.Format", @"");
-        textField.placeholder = @"EEE MMM d";
-    }];
-    [alert addAction:[UIAlertAction actionWithTitle:
-        CLLocalized(@"prefs.button.cancel", @"Cancel")
-        style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:
-        CLLocalized(@"prefs.button.save", @"Save")
-        style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-            NSString *format = alert.textFields.firstObject.text ?: @"";
-            CLSetPreferenceValue(@"Lockscreen.Clock.DateFormat.Format",
-                                 format.length ? format : nil);
-        }]];
-    [self presentViewController:alert animated:YES completion:nil];
-}
 
 - (void)handleRespringPressed {
     CLPostRespringNotification();
