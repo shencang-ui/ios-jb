@@ -603,7 +603,7 @@ static void CLReconcilePreferenceReload(void) {
 static void CLDebugMark(NSString *tag) {
     NSString *line = [NSString stringWithFormat:@"%.0f %@\n",
                       [NSDate date].timeIntervalSince1970, tag];
-    NSString *path = @"/var/mobile/Library/Preferences/com.ios26.clock.debug.log";
+    NSString *path = @"/var/mobile/Library/Accessibility/com.ios26.clock.debug.log";
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
         [line writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
         return;
