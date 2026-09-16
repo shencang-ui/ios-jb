@@ -68,21 +68,39 @@ static BOOL BTFileExists(const char *p) {
     return access(p, F_OK) == 0;
 }
 
-// ------------------------------------------------------------------ 字体路径重定向
+// ------------------------------------------------------------------ 字体路径自动定位 + 重定向
 //
-// 背景：BigTime 的字体请求路径是写死的 /var/mobile/Axs/字体素材/axs66.otf。
-// 这个"明面路径"会被越狱检测盯上。我们的做法：
-//   把对 /var/mobile/Axs 开头的访问，改写到 **jbroot 真实越狱路径** 下的同名位置，
-//   即 <jbroot真实根>/var/mobile/Axs/字体素材/axs66.otf
-//   （jbroot 真实根形如 /var/mobile/Containers/Shared/AppGroup/.jbroot-XXXXXXXXXXXX，
-//     每台设备随机，所以必须运行时算，不能写死。）
+// 背景：
+//   * BigTime 写死的字体请求路径是 /var/mobile/Axs/字体素材/axs66.otf
+//     （UTF-16 常量，BigTime.dylib @0x20158）
+//   * roothide 的 **jbroot 真实根**（形如 /var/mobile/Containers/Shared/AppGroup/.jbroot-XXXXXXXXXXXX）
+//     **每次越狱都是随机值** ⇒ 绝不能写死，必须运行时算
 //
-// 用 roothide/libroot 的 jbroot() 做转换（stub.h 里它会调到 libroot_dyn_jbrootpath）。
-// 目标不存在时**回退原路径**，保证不会因为没放字体而彻底失效。
+// 定位策略（每次 SpringBoard 启动都会重新跑一遍）：
+//   按优先级依次探测候选位置，取**第一个真实存在**的；每个候选都同时试「原样」和
+//   「jbroot() 换算后」两种拼法。命中结果缓存，失效时自动重新定位（应对重装/搬动/换越狱）。
+//
+//   ① 随本插件 deb 一起装进 jbroot 的副本  /Library/BigTimeFix/axs66.otf   ← 装一次永久生效
+//   ② 用户手放的 jbroot 真实路径           <jbroot>/var/mobile/Axs/字体素材/axs66.otf
+//   ③ BigTime 自己 bundle 里的             <jbroot>/Library/PreferenceBundles/BigTimePrefs.bundle/…
+//   ④ 兜底                                 /Library/Fonts/axs66.otf
+//
+// 命中后，凡是请求 /var/mobile/Axs 开头路径的访问，都会被改写到命中位置。
+
+#define BT_FONT_NAME1 "axs66.otf"
+#define BT_FONT_NAME2 "SFAdaptiveSoftNumeric-VF.otf"
+
+static NSString *gFontFile = nil;   // 解析出来的字体文件真实路径
+static NSString *gFontDir  = nil;   // 它所在目录
 
 static BOOL BTStatExists(const char *p) {
     struct stat st;
     return p && stat(p, &st) == 0;
+}
+
+static BOOL BTStatIsDir(const char *p) {
+    struct stat st;
+    return p && stat(p, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 // 可选用配置文件覆盖：/var/mobile/Library/Accessibility/btfix.fontdir 里写一个目录
@@ -104,6 +122,56 @@ static NSString *BTFontDirOverride(void) {
     return cached;
 }
 
+static NSArray<NSString *> *BTCandidates(void) {
+    return @[
+        @"/Library/BigTimeFix/" BT_FONT_NAME1,
+        @"/Library/BigTimeFix/" BT_FONT_NAME2,
+        @"/var/mobile/Axs/字体素材/" BT_FONT_NAME1,
+        @"/Library/PreferenceBundles/BigTimePrefs.bundle/" BT_FONT_NAME2,
+        @"/Library/Fonts/" BT_FONT_NAME1,
+    ];
+}
+
+// 重新定位字体；已有缓存且仍然有效就直接返回
+static void BTResolveFont(BOOL verbose) {
+    if (gFontFile && BTStatExists(gFontFile.fileSystemRepresentation)) return;
+    gFontFile = nil;
+    gFontDir  = nil;
+
+    // 0) 配置覆盖优先
+    NSString *ov = BTFontDirOverride();
+    if (ov && BTStatIsDir(ov.fileSystemRepresentation)) {
+        for (NSString *n in @[@BT_FONT_NAME1, @BT_FONT_NAME2]) {
+            NSString *f = [ov stringByAppendingPathComponent:n];
+            if (BTStatExists(f.fileSystemRepresentation)) { gFontFile = f; break; }
+        }
+        if (!gFontFile) { gFontDir = ov; }   // 目录在但没字体，也先记下目录
+    }
+
+    // 1..4) 候选逐个探测
+    if (!gFontFile) {
+        for (NSString *c in BTCandidates()) {
+            const char *jl = jbroot(c.fileSystemRepresentation);
+            NSString *jp = jl ? [NSString stringWithUTF8String:jl] : nil;
+            BOOL raw = BTStatExists(c.fileSystemRepresentation);
+            BOOL via = jp ? BTStatExists(jp.fileSystemRepresentation) : NO;
+            if (verbose) {
+                BTLog("  候选 %@  [原样=%s] [jbroot=%s]", c, raw ? "有" : "无", via ? "有" : "无");
+                if (via) BTLog("       jbroot 实路径 → %@", jp);
+            }
+            if (raw) { gFontFile = c;  break; }
+            if (via) { gFontFile = jp; break; }
+        }
+    }
+
+    gFontDir = gFontFile ? gFontFile.stringByDeletingLastPathComponent
+                         : (gFontDir ?: nil);
+    if (verbose) {
+        BTLog("字体定位结果: 文件=%s", gFontFile ? gFontFile.UTF8String : "(未找到)");
+        BTLog("              目录=%s", gFontDir  ? gFontDir.UTF8String  : "(无)");
+    }
+}
+
 // 返回重定向后的路径；不需要/不可用则返回 nil（调用方回退原值）
 static NSString *BTRedirectPath(id pathOrURL) {
     if (!gOn || !gRedirect) return nil;
@@ -122,34 +190,27 @@ static NSString *BTRedirectPath(id pathOrURL) {
 
     // ---- 窄过滤：只管 /var/mobile/Axs 这一条 ----
     if (![p hasPrefix:@(BT_FONT_REQ)]) return nil;
-    // 已经是真实路径了就别再套一层
+    // 请求的已经是 jbroot 真实路径了，别再套一层
     if ([p containsString:@".jbroot-"]) return nil;
 
+    BTResolveFont(NO);
+    if (!gFontFile && !gFontDir) return nil;
+
+    NSString *last = p.lastPathComponent;
     NSString *target = nil;
-    NSString *ov = BTFontDirOverride();
-    if (ov) {
-        // 配置了自定义目录：把 /var/mobile/Axs 之后的部分接上去
-        NSString *tail = [p substringFromIndex:[@(BT_FONT_REQ) length]];
-        target = [ov stringByAppendingString:tail];
-    } else {
-        // 默认：同相对路径的 jbroot 真实路径
-        const char *real = jbroot(p.fileSystemRepresentation);
-        if (real) target = [NSString stringWithUTF8String:real];
+    if ([last hasSuffix:@".otf"] || [last hasSuffix:@".ttf"]) {
+        target = gFontDir ? [gFontDir stringByAppendingPathComponent:last] : gFontFile;
+        if (!BTStatExists(target.fileSystemRepresentation)) target = gFontFile;
+    } else if (gFontDir) {
+        target = gFontDir;   // 列目录之类的请求
     }
     if (target.length == 0 || [target isEqualToString:p]) return nil;
 
-    if (BTStatExists(target.fileSystemRepresentation)) {
-        if (gRedirN < 40) {
-            BTLog("REDIRECT %@  ->  %@", p, target);
-            gRedirN++;
-        }
-        return target;
-    }
-    if (gRedirN < 40) {
-        BTLog("REDIRECT-MISS %@  (真实路径下没有，回退原路径)", p);
+    if (gRedirN < 60) {
+        BTLog("REDIRECT %@  →  %@", p, target);
         gRedirN++;
     }
-    return nil;
+    return target;
 }
 
 // ------------------------------------------------------------------ 层树处理
@@ -478,10 +539,9 @@ static int BTFixLayers(CALayer *l, CGRect full, int depth) {
         int fd = open(BTFIX_LOG, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd >= 0) close(fd);
 
-        // 把真实越狱路径算出来记一笔，方便排查
-        const char *probe = jbroot("/var/mobile/Axs/字体素材/axs66.otf");
-        BOOL probeOK = probe && BTStatExists(probe);
-        BTLog("=== BigTimeFix 0.3.0 启动 === 自愈=%s 字体重定向=%s"
+        // 记下本次 jbroot 真实根（每次越狱随机，这里现算）
+        const char *jb = jbroot("/");
+        BTLog("=== BigTimeFix 0.4.0 启动 === 自愈=%s 字体重定向=%s"
               "  BigTime 类: glass=%s hub=%s backdrop=%s observer=%s driver=%s",
               gGuard ? "开" : "关(放 btfix.guard 开)",
               gRedirect ? "开" : "关",
@@ -490,11 +550,13 @@ static int BTFixLayers(CALayer *l, CGRect full, int depth) {
               objc_getClass("LGClockBackdropView") ? "有" : "无",
               objc_getClass("LGClockScrollObserver") ? "有" : "无",
               objc_getClass("LGDisplayLinkDriver") ? "有" : "无");
-        BTLog("jbroot 目标: %s   存在=%s", probe ?: "(null)", probeOK ? "是" : "否");
-        BTLog("原始路径  : %s   存在=%s", "/var/mobile/Axs/字体素材/axs66.otf",
+        BTLog("本次 jbroot 真实根: %s", jb ?: "(null)");
+        BTLog("BigTime 请求的字体路径: %s  (存在=%s)", "/var/mobile/Axs/字体素材/axs66.otf",
               BTStatExists("/var/mobile/Axs/字体素材/axs66.otf") ? "是" : "否");
         NSString *ov = BTFontDirOverride();
         if (ov) BTLog("btfix.fontdir 覆盖: %@", ov);
+        BTLog("开始自动定位字体：");
+        BTResolveFont(YES);
 
         %init(BTMain);
         %init(BTFont);
