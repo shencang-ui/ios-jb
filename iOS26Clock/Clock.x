@@ -600,6 +600,7 @@ static void CLReconcilePreferenceReload(void) {
 }
 
 // ===== Respring（对齐参考实现：杀缓存进程 + SBSRelaunchAction 重启渲染服务器） =====
+#import <dlfcn.h>
 // libproc.h 在本 SDK 缺失，手动声明用到的两个函数
 #ifndef PROC_ALL_PIDS
 #define PROC_ALL_PIDS 1
@@ -832,7 +833,7 @@ static void CLDebugMark(NSString *tag) {
     [CLFontStore shared];
     CLObservePreferenceChanges(^{ CLReconcilePreferenceReload(); });
     CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL,
-                                    CLRespringRequested, (__bridge CFStringRef)CLPrefsRespringNotification,
+                                    CLRespringRequested, CLPrefsRespringNotification,
                                     NULL, CFNotificationSuspensionBehaviorCoalesce);
     %init(CLClockRewrite);
     }
