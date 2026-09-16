@@ -725,10 +725,12 @@ static void CLDebugMark(NSString *tag) {
 
 %ctor {
     @autoreleasepool {
-    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
+    // iOS 17 起，锁屏时钟由 com.apple.UIKit 守护进程渲染（对齐参考实现 liquidass：
+    // 过滤器 = com.apple.UIKit + com.apple.assistivetouchd，ctor 无进程门禁）
     {
         char buf[256];
-        snprintf(buf, sizeof(buf), "ctor os=%s font=%d ptv=%d datev=%d anim=%d",
+        snprintf(buf, sizeof(buf), "ctor bundle=%s os=%s font=%d ptv=%d datev=%d anim=%d",
+                 NSBundle.mainBundle.bundleIdentifier.UTF8String ?: "?",
                  UIDevice.currentDevice.systemVersion.UTF8String ?: "?",
                  (int)(CLVariableFontPath() != nil),
                  (int)(NSClassFromString(@"CSProminentTimeView") != nil),
