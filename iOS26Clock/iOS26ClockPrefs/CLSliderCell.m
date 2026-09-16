@@ -156,7 +156,9 @@
         [sself cl_updateValueLabel];
         if (sself->_key.length) CLSetPreferenceValue(sself->_key, @(v));
     }]];
-    [self.viewController presentViewController:alert animated:YES completion:nil];
+    UIViewController *vc = (UIViewController *)[_spec target];
+    if (!vc) return;
+    [vc presentViewController:alert animated:YES completion:nil];
 }
 
 @end

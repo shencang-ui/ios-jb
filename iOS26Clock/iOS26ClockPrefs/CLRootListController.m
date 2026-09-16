@@ -157,11 +157,11 @@
                               default:(CGFloat)def
                                  desc:(NSString *)desc {
     PSSpecifier *spec = [PSSpecifier preferenceSpecifierNamed:title
-                                                        target:nil
+                                                        target:self
                                                             set:nil
                                                             get:nil
                                                         detail:nil
-                                                          cell:PSTableCell
+                                                          cell:PSSliderCell
                                                           edit:nil];
     spec.name = title;
     spec.identifier = key;
