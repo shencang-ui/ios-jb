@@ -1,7 +1,9 @@
 # iOS26Clock — GitHub Actions 构建说明
 
-> **分支说明**：本仓库 `ios26clock` 分支 = iOS26Clock 插件（本说明）；
-> `main` 分支 = DemoTweak 示例流水线（iSH 那套工具），两边互不干扰，各建各的。
+> **分支说明（各插件独立，互不干扰）**：
+> - `ios26clock` 分支 = **iOS26Clock** 锁屏时钟插件（本说明），工作流 `Build iOS26Clock`
+> - `bigtimefix` 分支 = **BigTimeFix** BigTime 伴侣修复插件（在 `ci/repo-btfix` 工作区开发），工作流 `Build BigTimeFix`
+> - `main` 分支 = DemoTweak 示例流水线（iSH 那套工具），不要动
 
 ## 为什么改用 GitHub 构建
 
