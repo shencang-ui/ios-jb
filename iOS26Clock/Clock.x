@@ -524,6 +524,9 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
         }
     }
     self.applying = NO;
+    CGSize appliedSize = [@"14:34" sizeWithAttributes:@{NSFontAttributeName: label.font}];
+    CLDebugPrefMark([NSString stringWithFormat:@"applied fn=%@ glyphH=%.1f",
+                     label.font.fontName, appliedSize.height]);
     (void)reason;
 }
 
@@ -575,6 +578,12 @@ static void CLSourceTextDidChange(UILabel *label) {
     while (host && !CLIsHost(host)) host = host.superview;
     if (!host) return;
     if (!CLEnabled()) return;
+    {
+        UIFont *cur = label.font ?: [UIFont systemFontOfSize:10];
+        CGSize cs = [@"14:34" sizeWithAttributes:@{NSFontAttributeName: cur}];
+        CLDebugPrefMark([NSString stringWithFormat:@"textchange fn=%@ glyphH=%.1f",
+                         cur.fontName, cs.height]);
+    }
 
     CLClockState *state = CLStateForHost(host, YES);
     if (state.applying) {
