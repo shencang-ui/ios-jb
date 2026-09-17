@@ -153,3 +153,9 @@ void CLLog(NSString *format, ...) {
     va_end(args);
     NSLog(@"[iOS26Clock] %@", message);
 }
+
+void CLDebugPrefMark(NSString *tag) {
+    if (!tag.length) return;
+    CLSetPreferenceValue([@"Debug.Mark " stringByAppendingString:tag],
+                         @([NSDate date].timeIntervalSince1970));
+}

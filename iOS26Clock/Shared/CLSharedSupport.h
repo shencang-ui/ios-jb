@@ -30,3 +30,6 @@ void CLPostRespringNotification(void);
 void CLObservePreferenceChanges(dispatch_block_t block);
 
 void CLLog(NSString *format, ...);
+
+// 调试打点（写入偏好域 Debug.Mark <tag> 键，沙箱免疫）
+void CLDebugPrefMark(NSString *tag);

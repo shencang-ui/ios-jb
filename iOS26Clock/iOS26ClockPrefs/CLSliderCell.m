@@ -67,7 +67,7 @@
     // 关键：显式打开交互（PS 可能对非标准 cell 关掉了 userInteraction）
     self.userInteractionEnabled = YES;
     self.contentView.userInteractionEnabled = YES;
-    CLDebugMark([NSString stringWithFormat:@"cellsetup id=%@ key=%@",
+    CLDebugPrefMark([NSString stringWithFormat:@"cellsetup id=%@ key=%@",
                  _spec.identifier ?: @"?", _key ?: @"?"]);
 
     _key    = [_spec propertyForKey:@"key"];
@@ -139,7 +139,7 @@
     static BOOL reported = NO;
     if (!reported) {
         reported = YES;
-        CLDebugMark([NSString stringWithFormat:@"celllayout cell=%@ slider=%@ value=%@",
+        CLDebugPrefMark([NSString stringWithFormat:@"celllayout cell=%@ slider=%@ value=%@",
                      NSStringFromCGRect(self.bounds),
                      NSStringFromCGRect(_slider.frame),
                      NSStringFromCGRect(_valueLabel.frame)]);
