@@ -540,9 +540,9 @@ static CGFloat LGClockNearestObstacleTop(UIView *container, CGRect clockFrame,
 
 static NSString *LGClockVariableFontPath(void) {
 #if TARGET_OS_SIMULATOR
-    return @"/opt/simject/PreferenceBundles/LiquidAssPrefs.bundle/SFAdaptiveSoftNumeric-VF.otf";
+    return @"/opt/simject/PreferenceBundles/iOS26ClockPrefs.bundle/SFAdaptiveSoftNumeric-VF.otf";
 #else
-    return jbroot(@"/Library/PreferenceBundles/LiquidAssPrefs.bundle/SFAdaptiveSoftNumeric-VF.otf");
+    return jbroot(@"/Library/PreferenceBundles/iOS26ClockPrefs.bundle/SFAdaptiveSoftNumeric-VF.otf");
 #endif
 }
 
