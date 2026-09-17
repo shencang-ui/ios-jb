@@ -329,6 +329,14 @@ static NSString *CLVariableFontPathString(void) {
     CLLog(@"font ready path=%@ ps=%@ bytes=%lu axes=%@",
           path, _postScriptName, (unsigned long)data.length, ids);
     CLDebugPrefMark([NSString stringWithFormat:@"axes ids=%@ ranges=%@", ids, ranges]);
+    // 调试：程序化量测三档高度的实际渲染尺寸（判断 HGHT 轴是否真的改变字形）
+    for (NSNumber *h in @[@100.0, @240.0, @500.0]) {
+        UIFont *f = [self fontAtPointSize:60.0 heightAxis:h.doubleValue];
+        CGSize s = f ? [@"14:34" sizeWithAttributes:@{NSFontAttributeName: f}] : CGSizeZero;
+        CLDebugPrefMark([NSString stringWithFormat:@"probe h=%.0f w=%.1f glyphH=%.1f asc=%.1f cap=%.1f",
+                         h.doubleValue, s.width, s.height,
+                         f.ascender, f.capHeight]);
+    }
 }
 
 - (CGFloat)clampedValueForAxis:(NSString *)axis {
