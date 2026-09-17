@@ -91,7 +91,7 @@
         desc:CLLocalized(@"prefs.clock.font_width.desc", @"Horizontal glyph width (lower = narrower)")]];
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_height", @"Height")
-        key:@"Clock.VariableFont.Height" min:100.0 max:500.0 default:350.0
+        key:@"Clock.VariableFont.Height" min:100.0 max:240.0 default:240.0
         desc:CLLocalized(@"prefs.clock.font_height.desc", @"Vertical glyph height")]];
     [specs addObject:[self sliderSpecWithTitle:
         CLLocalized(@"prefs.clock.font_softness", @"Softness")
