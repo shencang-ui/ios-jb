@@ -4,8 +4,7 @@
 #import <UIKit/UIKit.h>
 #import "CLSharedSupport.h"
 #import <dlfcn.h>
-#import <libproc.h>
-
+// libproc.h 在本 SDK 缺失，手动声明用到的两个函数
 #ifndef PROC_ALL_PIDS
 #define PROC_ALL_PIDS 1
 #endif
