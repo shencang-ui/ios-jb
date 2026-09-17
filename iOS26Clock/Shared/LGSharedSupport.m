@@ -78,109 +78,24 @@ static NSString * const LGPrefsDidReloadInProcessNotification = @"dylv.liquidass
 static NSDictionary<NSString *, id> *sLGCachedPreferences = nil;
 static os_unfair_lock sLGPrefsLock = OS_UNFAIR_LOCK_INIT;
 static dispatch_once_t sLGPrefsSetupOnce;
-static dispatch_queue_t sLGLogQueue;
-static NSFileHandle *sLGLogHandle;
 static void *kLGImageStableCacheKeyAssociation = &kLGImageStableCacheKeyAssociation;
 
 static NSDictionary<NSString *, id> *LGCopyPreferencesDictionary(void);
 
-static void LGCloseLogHandle(void) {
-    if (!sLGLogHandle) return;
-    if (@available(iOS 13.0, *)) {
-        [sLGLogHandle closeAndReturnError:nil];
-    } else {
-        [sLGLogHandle closeFile];
-    }
-    sLGLogHandle = nil;
-}
 
-static void LGCloseLogHandleAtExit(void) {
-    if (!sLGLogQueue) {
-        LGCloseLogHandle();
-        return;
-    }
-    dispatch_sync(sLGLogQueue, ^{
-        LGCloseLogHandle();
-    });
-}
 
-static NSString *LGLogFilePath(void) {
-    static NSString *sPath = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-#if TARGET_OS_SIMULATOR
-        sPath = @"/tmp/liquidglass.log";
-#else
-
-        if ([NSBundle.mainBundle.bundleIdentifier
-                isEqualToString:@"com.apple.mobilesafari"]) {
-            NSString *temporaryDirectory = NSTemporaryDirectory();
-            sPath = [temporaryDirectory
-                stringByAppendingPathComponent:@"liquidglass.log"];
-        } else {
-            sPath = @"/var/mobile/Library/Accessibility/liquidglass.log";
-        }
-#endif
-    });
-    return sPath;
-}
 
 static void LGAppendLogLine(NSString *line) {
-    NSString *path = LGLogFilePath();
-    if (!path.length || !line.length) return;
-
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        sLGLogQueue = dispatch_queue_create("dylv.liquidass.logfile", DISPATCH_QUEUE_SERIAL);
-        atexit(LGCloseLogHandleAtExit);
-    });
-
-    dispatch_async(sLGLogQueue, ^{
-        NSFileManager *fm = [NSFileManager defaultManager];
-        if (![fm fileExistsAtPath:path]) {
-            NSError *createError = nil;
-            [NSData.data writeToFile:path options:NSDataWritingAtomic error:&createError];
-            if (createError) {
-                NSLog(@"[LiquidAss] log file create failed %@", createError.localizedDescription ?: @"unknown");
-                return;
-            }
-        }
-
-        NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
-        if (!data.length) {
-            return;
-        }
-        if (!sLGLogHandle) {
-            sLGLogHandle = [NSFileHandle fileHandleForWritingAtPath:path];
-        }
-        if (!sLGLogHandle) {
-            NSLog(@"[LiquidAss] log file open failed %@", path);
-            return;
-        }
-
-        NSError *handleError = nil;
-        if (@available(iOS 13.0, *)) {
-            [sLGLogHandle seekToEndReturningOffset:nil error:&handleError];
-            if (!handleError) {
-                [sLGLogHandle writeData:data error:&handleError];
-            }
-        } else {
-            @try {
-                [sLGLogHandle seekToEndOfFile];
-                [sLGLogHandle writeData:data];
-            } @catch (NSException *exception) {
-                handleError = [NSError errorWithDomain:@"dylv.liquidass.logfile"
-                                                  code:1
-                                              userInfo:@{NSLocalizedDescriptionKey: exception.reason ?: @"NSFileHandle exception"}];
-            }
-        }
-
-        if (handleError) {
-            LGCloseLogHandle();
-            NSLog(@"[LiquidAss] log file append failed %@", handleError.localizedDescription ?: @"unknown");
-        }
-    });
-}
+    if (!line.length) return;
+    // SpringBoard 沙箱禁止创建文件 → 日志走 CFPreferences 通道（Debug.Log.Buffer，保留最近 50 条）
+    NSString *key = @"Debug.Log.Buffer";
+    NSArray *cur = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)key,
+                                                               (__bridge CFStringRef)LGPrefsDomain));
+    NSMutableArray *lines = [cur isKindOfClass:[NSArray class]] ? [cur mutableCopy] : [NSMutableArray array];
+    [lines addObject:line];
+    while ([lines count] > 50) [lines removeObjectAtIndex:0];
+    CFPreferencesSetAppValue((__bridge CFStringRef)key, lines, (__bridge CFStringRef)LGPrefsDomain);
+    CFPreferencesAppSynchronize((__bridge CFStringRef)LGPrefsDomain);
 
 static NSDictionary<NSString *, id> *LGCopyPreferencesDictionary(void) {
     CFPreferencesAppSynchronize((__bridge CFStringRef)LGPrefsDomain);
