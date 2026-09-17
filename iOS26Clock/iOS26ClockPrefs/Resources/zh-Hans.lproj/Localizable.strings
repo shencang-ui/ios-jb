@@ -10,7 +10,7 @@
 "prefs.clock.font_size.desc" = "时钟数字的整体大小（缩放倍数）";
 "prefs.clock.font_weight.desc" = "笔画粗细，越大越粗";
 "prefs.clock.font_width.desc" = "字形横向宽度，越小越窄";
-"prefs.clock.font_height.desc" = "时钟数字纵向拉伸（100=原始高度，240=约 2.4 倍）";
+"prefs.clock.font_height.desc" = "字形纵向高度";
 "prefs.clock.font_softness.desc" = "边缘柔和圆润程度";
 "prefs.slider.range" = "取值范围：%@（点右侧数值可直接输入）";
 "prefs.clock.date_section" = "日期";

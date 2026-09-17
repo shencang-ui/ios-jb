@@ -8,9 +8,10 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = iOS26Clock
 
 iOS26Clock_FILES     = Clock.x \
+                       CLRespringHelper.m \
                        $(wildcard Shared/*.[xm])
 iOS26Clock_CFLAGS    = -fobjc-arc -IShared
-iOS26Clock_FRAMEWORKS = UIKit CoreText CoreGraphics
+iOS26Clock_FRAMEWORKS = UIKit CoreText CoreGraphics QuartzCore CoreMotion
 iOS26Clock_USE_MODULES = 0
 ifeq ($(THEOS_PACKAGE_SCHEME),roothide)
 iOS26Clock_LIBRARIES += roothide

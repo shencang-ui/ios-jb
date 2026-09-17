@@ -1,16 +1,17 @@
 #import "CLSharedSupport.h"
 #import <os/lock.h>
 
-static NSString * const sCLPrefsDomain = @"com.ios26.clockprefs";
-CFStringRef const CLPrefsChangedNotification = CFSTR("com.ios26.clockprefs/Reload");
-CFStringRef const CLPrefsRespringNotification = CFSTR("com.ios26.clockprefs/Respring");
-static NSString * const sCLPrefsDidReloadInProcessNotification = @"com.ios26.clockprefs.InProcessReload";
+// 偏好域与通知名对齐参考实现（liquidass），让移植的时钟引擎直接读取我们的设置
+static NSString * const sCLPrefsDomain = @"dylv.liquidassprefs";
+CFStringRef const CLPrefsChangedNotification = CFSTR("dylv.liquidassprefs/Reload");
+CFStringRef const CLPrefsRespringNotification = CFSTR("dylv.liquidassprefs/Respring");
+static NSString * const sCLPrefsDidReloadInProcessNotification = @"dylv.liquidassprefs.InProcessReload";
 
 static NSDictionary<NSString *, id> *sCLCachedPreferences = nil;
 static os_unfair_lock sCLPrefsLock = OS_UNFAIR_LOCK_INIT;
 static dispatch_once_t sCLPrefsSetupOnce;
 
-NSString * const CLPrefsDomain = @"com.ios26.clockprefs";
+NSString * const CLPrefsDomain = @"dylv.liquidassprefs";
 
 static NSDictionary<NSString *, id> *CLCopyPreferencesDictionary(void) {
     CFPreferencesAppSynchronize((__bridge CFStringRef)CLPrefsDomain);
