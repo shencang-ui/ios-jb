@@ -33,7 +33,7 @@ static CGFloat CLFontScale(void) {
 static CGFloat CLAxisValue(NSString *axis) {
     if ([axis isEqualToString:@"weight"]) return CL_prefFloat(@"Clock.VariableFont.Weight", 750.0);
     if ([axis isEqualToString:@"width"]) return CL_prefFloat(@"Clock.VariableFont.Width", 100.0);
-    if ([axis isEqualToString:@"height"]) return CL_prefFloat(@"Clock.VariableFont.Height", 350.0);
+    if ([axis isEqualToString:@"height"]) return CL_prefFloat(@"Clock.VariableFont.Height", 240.0);
     if ([axis isEqualToString:@"softness"]) return CL_prefFloat(@"Clock.VariableFont.Softness", 56.0);
     return 0.0;
 }
