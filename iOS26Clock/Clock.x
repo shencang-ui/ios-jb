@@ -390,7 +390,12 @@ static NSString *CLVariableFontPathString(void) {
     if (!font)
         CLLog(@"font create failed ps=%@ size=%.2f variations=%@", self.postScriptName,
               pointSize, variations);
-    if (font) [self.cache setObject:font forKey:key];
+    if (font) {
+        [self.cache setObject:font forKey:key];
+        CGSize s = [@"14:34" sizeWithAttributes:@{NSFontAttributeName: font}];
+        CLDebugPrefMark([NSString stringWithFormat:@"measure key=%@ w=%.1f glyphH=%.1f asc=%.1f cap=%.1f",
+                         key, s.width, s.height, font.ascender, font.capHeight]);
+    }
     return font;
 }
 
