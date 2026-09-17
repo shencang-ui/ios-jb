@@ -2,7 +2,7 @@ include $(THEOS)/makefiles/common.mk
 
 BUNDLE_NAME = iOS26ClockPrefs
 
-iOS26ClockPrefs_FILES = $(wildcard *.m) ../Shared/CLSharedSupport.m ../Shared/CL_OSVersionShim.m
+iOS26ClockPrefs_FILES = $(wildcard *.m) ../Shared/CLSharedSupport.m
 iOS26ClockPrefs_FRAMEWORKS = UIKit CoreText CoreGraphics
 iOS26ClockPrefs_INSTALL_PATH = /Library/PreferenceBundles
 iOS26ClockPrefs_CFLAGS = -fobjc-arc -I../Shared
