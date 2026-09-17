@@ -328,6 +328,7 @@ static NSString *CLVariableFontPathString(void) {
     _axisRanges = ranges;
     CLLog(@"font ready path=%@ ps=%@ bytes=%lu axes=%@",
           path, _postScriptName, (unsigned long)data.length, ids);
+    CLDebugPrefMark([NSString stringWithFormat:@"axes ids=%@ ranges=%@", ids, ranges]);
 }
 
 - (CGFloat)clampedValueForAxis:(NSString *)axis {

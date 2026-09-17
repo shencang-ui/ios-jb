@@ -70,7 +70,7 @@
     CLDebugPrefMark([NSString stringWithFormat:@"cellsetup id=%@ key=%@",
                  _spec.identifier ?: @"?", _key ?: @"?"]);
 
-    _key    = [_spec propertyForKey:@"key"];
+    _key    = [_spec propertyForKey:@"key"] ?: _spec.identifier;
     _min    = [[_spec propertyForKey:@"min"] doubleValue];
     _max    = [[_spec propertyForKey:@"max"] doubleValue];
     _def    = [[_spec propertyForKey:@"default"] doubleValue];
@@ -161,7 +161,8 @@
 }
 
 - (void)cl_sliderFinished:(UISlider *)slider {
-    if (_key.length) CLSetPreferenceValue(_key, @((double)slider.value));
+    NSString *key = _key ?: _spec.identifier;
+    if (key.length) CLSetPreferenceValue(key, @((double)slider.value));
 }
 
 // 点击数值 → 弹窗直接输入
@@ -197,7 +198,8 @@
         v = MIN(MAX(v, sself->_min), sself->_max);
         sself->_slider.value = (float)v;
         [sself cl_updateValueLabel];
-        if (sself->_key.length) CLSetPreferenceValue(sself->_key, @(v));
+        NSString *key = sself->_key ?: sself->_spec.identifier;
+        if (key.length) CLSetPreferenceValue(key, @(v));
     }]];
     UIViewController *vc = (UIViewController *)[_spec target];
     if (!vc) return;
