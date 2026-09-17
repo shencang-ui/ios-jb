@@ -492,19 +492,16 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
     self.lastSignature = signature;
     self.applying = YES;
 
-    if (variableFontEnabled) {
-        CLDebugPrefMark([NSString stringWithFormat:@"apply w=%.0f wd=%.0f h=%.0f s=%.0f scale=%.2f size=%.1f",
-                         CLAxisValue(@"weight"), CLAxisValue(@"width"),
-                         CLAxisValue(@"height"), CLAxisValue(@"softness"),
-                         CLFontScale(), pointSize]);
-    }
-
     if (!enabled) {
         if (self.originalFont) label.font = self.originalFont;
         label.alpha = self.originalLabelAlpha;
         label.hidden = self.originalLabelHidden;
     } else if (variableFontEnabled) {
         CGFloat pointSize = self.originalFont.pointSize * CLFontScale();
+        CLDebugPrefMark([NSString stringWithFormat:@"apply w=%.0f wd=%.0f h=%.0f s=%.0f scale=%.2f size=%.1f",
+                         CLAxisValue(@"weight"), CLAxisValue(@"width"),
+                         CLAxisValue(@"height"), CLAxisValue(@"softness"),
+                         CLFontScale(), pointSize]);
         UIFont *font = [[CLFontStore shared] fontAtPointSize:pointSize];
         if (font) {
             label.font = font;
