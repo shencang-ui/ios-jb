@@ -94,8 +94,9 @@ static void LGAppendLogLine(NSString *line) {
     NSMutableArray *lines = [cur isKindOfClass:[NSArray class]] ? [cur mutableCopy] : [NSMutableArray array];
     [lines addObject:line];
     while ([lines count] > 50) [lines removeObjectAtIndex:0];
-    CFPreferencesSetAppValue((__bridge CFStringRef)key, lines, (__bridge CFStringRef)LGPrefsDomain);
+    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)lines, (__bridge CFStringRef)LGPrefsDomain);
     CFPreferencesAppSynchronize((__bridge CFStringRef)LGPrefsDomain);
+}
 
 static NSDictionary<NSString *, id> *LGCopyPreferencesDictionary(void) {
     CFPreferencesAppSynchronize((__bridge CFStringRef)LGPrefsDomain);
