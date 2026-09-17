@@ -415,6 +415,8 @@ static NSString *CLVariableFontPathString(void) {
 @property (nonatomic, strong) UIFont *originalFont;
 @property (nonatomic) CGFloat originalLabelAlpha;
 @property (nonatomic) BOOL originalLabelHidden;
+@property (nonatomic) CGAffineTransform originalTransform;
+@property (nonatomic) BOOL originalTransformStored;
 @property (nonatomic) BOOL applying;
 @property (nonatomic) BOOL scheduled;
 @property (nonatomic, copy) NSString *lastSignature;
@@ -485,6 +487,8 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
         self.originalFont = savedFont ?: label.font;
         self.originalLabelAlpha = label.alpha;
         self.originalLabelHidden = label.hidden;
+        self.originalTransform = label.transform;
+        self.originalTransformStored = YES;
     }
     if (!label) return;
 
@@ -508,6 +512,7 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
 
     if (!enabled) {
         if (self.originalFont) label.font = self.originalFont;
+        if (self.originalTransformStored) label.transform = self.originalTransform;
         label.alpha = self.originalLabelAlpha;
         label.hidden = self.originalLabelHidden;
     } else if (variableFontEnabled) {
@@ -516,9 +521,16 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
                          CLAxisValue(@"weight"), CLAxisValue(@"width"),
                          CLAxisValue(@"height"), CLAxisValue(@"softness"),
                          CLFontScale(), pointSize]);
-        UIFont *font = [[CLFontStore shared] fontAtPointSize:pointSize];
+        // HGHT 轴实测只改行框不改字形（会撑爆布局把日期顶飞），
+        // 固定 100=自然字形；纵向长度用 transform 拉伸实现，滑条 100~240 → 1.0x~2.4x
+        UIFont *font = [[CLFontStore shared] fontAtPointSize:pointSize heightAxis:100.0];
         if (font) {
             label.font = font;
+            CGFloat h = CLAxisValue(@"height");
+            CGFloat sy = MAX(1.0, h / 100.0);
+            CGAffineTransform base = self.originalTransformStored
+                ? self.originalTransform : CGAffineTransformIdentity;
+            label.transform = CGAffineTransformScale(base, 1.0, sy);
             label.alpha = 1.0;
             label.hidden = NO;
         }
@@ -534,6 +546,7 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
     if (self.sourceLabel && !self.applying) {
         self.applying = YES;
         if (self.originalFont) self.sourceLabel.font = self.originalFont;
+        if (self.originalTransformStored) self.sourceLabel.transform = self.originalTransform;
         self.sourceLabel.alpha = self.originalLabelAlpha;
         self.sourceLabel.hidden = self.originalLabelHidden;
         self.applying = NO;
