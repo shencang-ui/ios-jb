@@ -1604,12 +1604,10 @@ static void LGPublishArtworkRect(UIView *artworkView) {
     %orig;
     LGPublishArtworkRect((UIView *)self);
 }
-
 - (void)didMoveToWindow {
     %orig;
     LGPublishArtworkRect((UIView *)self);
 }
-
 - (void)dealloc {
     if (LGIsCoverSheetArtworkView((UIView *)self))
         LGLensRectWrite(LGLensRectSlotNowPlayingArtwork, NO, 0.f, 0.f, 0.f, 0.f);
@@ -1675,8 +1673,14 @@ static void LGPublishArtworkRect(UIView *artworkView) {
 %end
 
 %hook CSProminentTimeView
-- (void)didMoveToWindow { %orig; LGClockHostDidMove((UIView *)self); }
-- (void)layoutSubviews { %orig; LGClockHostDidLayout((UIView *)self); }
+- (void)didMoveToWindow {
+    %orig;
+    LGClockHostDidMove((UIView *)self);
+}
+- (void)layoutSubviews {
+    %orig;
+    LGClockHostDidLayout((UIView *)self);
+}
 %end
 
 %hook SBFLockScreenDateView
@@ -1722,28 +1726,58 @@ static void LGPublishArtworkRect(UIView *artworkView) {
 %end
 
 %hook PLPlatterView
-- (void)didMoveToWindow { %orig; LGClockObstacleDidChange((UIView *)self); }
-- (void)layoutSubviews { %orig; LGClockObstacleDidChange((UIView *)self); }
+- (void)didMoveToWindow {
+    %orig;
+    LGClockObstacleDidChange((UIView *)self);
+}
+- (void)layoutSubviews {
+    %orig;
+    LGClockObstacleDidChange((UIView *)self);
+}
 %end
 
 %hook NCNotificationShortLookView
-- (void)didMoveToWindow { %orig; if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self); }
-- (void)layoutSubviews { %orig; if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self); }
+- (void)didMoveToWindow {
+    %orig;
+    if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self);
+}
+- (void)layoutSubviews {
+    %orig;
+    if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self);
+}
 %end
 
 %hook NCNotificationLongLookView
-- (void)didMoveToWindow { %orig; if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self); }
-- (void)layoutSubviews { %orig; if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self); }
+- (void)didMoveToWindow {
+    %orig;
+    if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self);
+}
+- (void)layoutSubviews {
+    %orig;
+    if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self);
+}
 %end
 
 %hook NCNotificationListSectionRevealHintView
-- (void)didMoveToWindow { %orig; if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self); }
-- (void)layoutSubviews { %orig; if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self); }
+- (void)didMoveToWindow {
+    %orig;
+    if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self);
+}
+- (void)layoutSubviews {
+    %orig;
+    if (LGClockIsLegacySystem()) LGClockObstacleDidChange((UIView *)self);
+}
 %end
 
 %hook NCNotificationListHeaderTitleView
-- (void)didMoveToWindow { %orig; LGClockObstacleDidChange((UIView *)self); }
-- (void)layoutSubviews { %orig; LGClockObstacleDidChange((UIView *)self); }
+- (void)didMoveToWindow {
+    %orig;
+    LGClockObstacleDidChange((UIView *)self);
+}
+- (void)layoutSubviews {
+    %orig;
+    LGClockObstacleDidChange((UIView *)self);
+}
 %end
 
 %hook NCNotificationListView
