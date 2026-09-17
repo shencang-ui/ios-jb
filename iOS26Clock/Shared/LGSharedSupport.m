@@ -394,7 +394,7 @@ BOOL LG_globalEnabled(void) {
 }
 
 BOOL LGDebugLoggingEnabled(void) {
-    return LG_prefBool(@"Debug.Logging.Enabled", NO);
+    return YES; // 诊断期强制开启（诊断完成后恢复为 LG_prefBool(@"Debug.Logging.Enabled", NO)）
 }
 
 void LGLog(NSString *format, ...) {
