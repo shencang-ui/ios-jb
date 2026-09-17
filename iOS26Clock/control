@@ -1,6 +1,6 @@
 Package: com.ios26.clock
 Name: iOS 26 时钟
-Version: 0.3.19
+Version: 0.3.20
 Architecture: iphoneos-arm
 Description: iOS 26 style variable font lock screen clock
 Maintainer: ios26clock

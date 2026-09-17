@@ -39,7 +39,7 @@ static CGFloat CLAxisValue(NSString *axis) {
 }
 
 static BOOL CLDateFormatEnabled(void) {
-    return CL_prefBool(@"Lockscreen.Clock.DateFormat.Enabled", YES);
+    return CL_prefBool(@"Lockscreen.Clock.DateFormat.Enabled", NO);
 }
 
 static NSString *CLVariableFontPath(void) {
@@ -364,9 +364,20 @@ static NSString *CLVariableFontPathString(void) {
 
     NSMutableDictionary *variations = [NSMutableDictionary dictionary];
     [self.axisIDs enumerateKeysAndObjectsUsingBlock:^(NSString *axis, NSNumber *identifier, BOOL *stop) {
-        variations[identifier] = @([axis isEqualToString:@"height"]
-            ? heightAxis : [self clampedValueForAxis:axis]);
+        CGFloat value;
+        if ([axis isEqualToString:@"height"]) {
+            // 字高同样必须钳位到字体真实轴范围，越界值会被 CoreText 整体忽略
+            value = heightAxis;
+            NSArray<NSNumber *> *range = self.axisRanges[@"height"];
+            if (range.count == 2)
+                value = MIN(MAX(value, range[0].doubleValue), range[1].doubleValue);
+        } else {
+            value = [self clampedValueForAxis:axis];
+        }
+        variations[identifier] = @(value);
     }];
+    CLDebugPrefMark([NSString stringWithFormat:@"fontcreate ps=%@ var=%@",
+                     self.postScriptName, variations]);
     NSDictionary *attributes = @{
         (id)kCTFontNameAttribute: self.postScriptName,
         (id)kCTFontVariationAttribute: variations,
@@ -480,6 +491,13 @@ static BOOL CLLabelUsesOurFont(UILabel *label) {
     if ([signature isEqualToString:self.lastSignature] && fontStateMatches) return;
     self.lastSignature = signature;
     self.applying = YES;
+
+    if (variableFontEnabled) {
+        CLDebugPrefMark([NSString stringWithFormat:@"apply w=%.0f wd=%.0f h=%.0f s=%.0f scale=%.2f size=%.1f",
+                         CLAxisValue(@"weight"), CLAxisValue(@"width"),
+                         CLAxisValue(@"height"), CLAxisValue(@"softness"),
+                         CLFontScale(), pointSize]);
+    }
 
     if (!enabled) {
         if (self.originalFont) label.font = self.originalFont;
