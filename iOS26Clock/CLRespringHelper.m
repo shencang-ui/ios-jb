@@ -2,6 +2,7 @@
 // （与参考实现 liquidass Tweak.x 的 LG_requestRespring 同一方案）
 
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
 #import "CLSharedSupport.h"
 #import <dlfcn.h>
 // libproc.h 在本 SDK 缺失，手动声明用到的两个函数
